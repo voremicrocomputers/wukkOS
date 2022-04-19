@@ -58,14 +58,14 @@ pub struct SerialPorts {
 }
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-fn outb(port: u16, data: u8) {
+fn command(port: u16, data: u8) {
     unsafe {
         asm!("out dx, al", in("al") data, in("dx") port);
     }
 }
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-fn inb(port: u16) -> u8 {
+fn read(port: u16) -> u8 {
     let mut data: u8;
     unsafe {
         asm!("in al, dx", out("al") data, in("dx") port);
@@ -75,17 +75,17 @@ fn inb(port: u16) -> u8 {
 
 impl Port {
     fn is_transmit_empty(&self) -> bool {
-        let status = inb(self.base as u16 + serial_offsets::LINE_STATUS as u16);
+        let status = read(self.base as u16 + serial_offsets::LINE_STATUS as u16);
         status & 0x20 == 0x20
     }
 
     pub fn transmit(&self, data: u8) {
         while !self.is_transmit_empty() {}
-        outb(self.base as u16 + serial_offsets::DATA as u16, data);
+        command(self.base as u16 + serial_offsets::DATA as u16, data);
     }
 
     fn is_recv_full(&self) -> bool {
-        let status = inb(self.base as u16 + serial_offsets::LINE_STATUS as u16);
+        let status = read(self.base as u16 + serial_offsets::LINE_STATUS as u16);
         status & 0x01 == 0x01
     }
 
@@ -100,7 +100,7 @@ impl Port {
         } else {
             while !self.is_recv_full() {}
         }
-        inb(self.base as u16 + serial_offsets::DATA as u16)
+        read(self.base as u16 + serial_offsets::DATA as u16)
     }
 
     pub fn transrecv(&self, data: u8) -> u8 {
@@ -111,22 +111,22 @@ impl Port {
 
 pub fn test_port(port: potential_serial_ports) -> bool {
     let mut port: u16 = port as u16;
-    outb(port + serial_offsets::INTERRUPT_ID as u16, 0x00); // disable interrupts
-    outb(port + serial_offsets::LINE_CTRL as u16, 0x80); // enable DLAB
-    outb(port + serial_offsets::DATA as u16, 0x03); // set divisor to 3 (lo byte)
-    outb(port + serial_offsets::LINE_CTRL as u16, 0x03); // set divisor to 3 (hi byte)
-    outb(port + serial_offsets::FIFO_CTRL as u16, 0xC7); // enable FIFO, clear them, with 14-byte threshold
-    outb(port + serial_offsets::MODEM_CTRL as u16, 0x0B); // IRQs enabled, RTS/DSR set
-    outb(port + serial_offsets::MODEM_CTRL as u16, 0x1E); // loopback mode
+    command(port + serial_offsets::INTERRUPT_ID as u16, 0x00); // disable interrupts
+    command(port + serial_offsets::LINE_CTRL as u16, 0x80); // enable DLAB
+    command(port + serial_offsets::DATA as u16, 0x03); // set divisor to 3 (lo byte)
+    command(port + serial_offsets::LINE_CTRL as u16, 0x03); // set divisor to 3 (hi byte)
+    command(port + serial_offsets::FIFO_CTRL as u16, 0xC7); // enable FIFO, clear them, with 14-byte threshold
+    command(port + serial_offsets::MODEM_CTRL as u16, 0x0B); // IRQs enabled, RTS/DSR set
+    command(port + serial_offsets::MODEM_CTRL as u16, 0x1E); // loopback mode
 
     // test serial
-    outb(port + serial_offsets::DATA as u16, 0xAE);
+    command(port + serial_offsets::DATA as u16, 0xAE);
     // check if we received the correct byte
-    if inb(port + serial_offsets::DATA as u16) != 0xAE {
+    if read(port + serial_offsets::DATA as u16) != 0xAE {
         return false;
     } else {
         // set stuffz idk
-        outb(port + serial_offsets::MODEM_CTRL as u16, 0x0F);
+        command(port + serial_offsets::MODEM_CTRL as u16, 0x0F);
         return true;
     }
 }
