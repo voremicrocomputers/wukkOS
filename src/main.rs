@@ -4,8 +4,11 @@
 use bootloader::{entry_point, BootInfo, boot_info};
 use core::panic::PanicInfo;
 use bootloader::boot_info::{FrameBuffer, FrameBufferInfo, PixelFormat};
+use crate::serial::potential_serial_ports;
 
 mod font;
+mod serial;
+mod internals;
 
 
 #[derive(Clone, Copy)]
@@ -25,9 +28,17 @@ struct Colour {
 
 const RAINBOW : [Colour; 6] = [Colour{r:255,g:0,b:0}, Colour{r:255,g:127,b:0}, Colour{r:255,g:255,b:0}, Colour{r:0,g:255,b:0}, Colour{r:0,g:255,b:255}, Colour{r:0,g:0,b:255}];
 
+
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    loop {}
+fn panic(_info: &PanicInfo) -> ! { loop {} }
+
+fn KernelPanic(msg: &str, fb: &mut FrameBuffer) {
+    // cover the screen in red
+    for y in 0..fb.info().vertical_resolution {
+        for x in 0..fb.info().horizontal_resolution {
+            put_pixel(x, y, Colour{r:255,g:0,b:0}, fb);
+        }
+    }
 }
 
 fn put_pixel(x: usize, y: usize, color: Colour, fb: &mut FrameBuffer) {
@@ -109,6 +120,21 @@ fn draw_string(x: usize, y: usize, s: &str, color: Colour, fb: &mut FrameBuffer)
     }
 }
 
+fn draw_horizcentre_string(y: usize, s: &str, color: Colour, fb: &mut FrameBuffer) {
+    let mut x_tmp = (fb.info().horizontal_resolution - s.len() * 8) / 2;
+    let mut y_tmp = y;
+
+    for c in s.chars() {
+        if c == '\n' {
+            x_tmp = (fb.info().horizontal_resolution - s.len() * 8) / 2;
+            y_tmp += 8;
+        } else {
+            draw_char(x_tmp, y_tmp, c, color, fb);
+            x_tmp += 8;
+        }
+    }
+}
+
 fn draw_rainbow_string(x: usize, y: usize, s: &str, fb: &mut FrameBuffer) {
     let mut x_tmp = x;
     let mut y_tmp = y;
@@ -143,9 +169,24 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
         //draw_string(20, 20, "i love drinking cum\nnewline test", Colour { r: 255, g: 0, b: 255 }, framebuffer);
         //draw_rainbow_string(20, 40, "gay sex", framebuffer);
 
-        draw_string(20,20, "),:\n\n\n\nuh oh! windows error! your computer is not compatible with windows 12\n\ncontact billgate@realmicrosoft.com to fix this issue!", Colour { r: 255, g: 255, b: 255}, framebuffer);
+        //draw_string(20,20, "),:\n\n\n\nuh oh! windows error! your computer is not compatible with windows 12\n\ncontact billgate@realmicrosoft.com to fix this issue!", Colour { r: 255, g: 255, b: 255}, framebuffer);
 
-        draw_rainbow_string((fb_width/2) - ((7*8)/2), (fb_height/2) - 4, "gay sex", framebuffer);
+        draw_horizcentre_string(((fb_height/2)-4)-16, "welcome to windows 12! here is info:", Colour { r: 255, g: 255, b: 255 }, framebuffer);
+
+        // time for some funny com port stuff
+        let serial_ports = serial::init_serial();
+        draw_horizcentre_string(((fb_height/2)-4)-8, "serial ports:", Colour { r: 255, g: 255, b: 255 }, framebuffer);
+
+        for port in 0..serial_ports.ports_enabled.len() {
+            if serial_ports.ports_enabled[port] {
+                draw_horizcentre_string(((fb_height/2)-4)+(port as usize*8), serial_ports.ports[port].base.to_string(), Colour { r: 255, g: 255, b: 255 }, framebuffer);
+            } else { // draw in grey
+                draw_horizcentre_string(((fb_height/2)-4)+(port as usize*8), serial_ports.ports[port].base.to_string(), Colour { r: 255, g: 0, b: 0 }, framebuffer);
+            }
+        }
+
+
+        //draw_rainbow_string((fb_width/2) - ((7*8)/2), (fb_height/2) - 4, "gay sex", framebuffer);
 
     }
 
