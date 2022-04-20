@@ -4,25 +4,12 @@
 use bootloader::{entry_point, BootInfo, boot_info};
 use core::panic::PanicInfo;
 use bootloader::boot_info::{FrameBuffer, FrameBufferInfo, PixelFormat};
+use crate::internals::WhyDoTheyCallItOvenWhenYouOfInTheColdFoodOfOutHotEatTheFood::*;
 use crate::serial::potential_serial_ports;
 
 mod font;
 mod serial;
 mod internals;
-
-
-#[derive(Clone, Copy)]
-struct Point {
-    x: i32,
-    y: i32,
-}
-
-#[derive(Clone, Copy)]
-struct Colour {
-    r: u8,
-    g: u8,
-    b: u8,
-}
 
 
 
@@ -32,11 +19,11 @@ const RAINBOW : [Colour; 6] = [Colour{r:255,g:0,b:0}, Colour{r:255,g:127,b:0}, C
 #[panic_handler]
 fn panic(_info: &PanicInfo) -> ! { loop {} }
 
-fn KernelPanic(msg: &str, fb: &mut FrameBuffer) {
+fn KernelPanic(msg: KernelError, fb: &mut FrameBuffer) {
     // cover the screen in red
     for y in 0..fb.info().vertical_resolution {
         for x in 0..fb.info().horizontal_resolution {
-            put_pixel(x, y, Colour{r:255,g:0,b:0}, fb);
+            put_pixel(x, y, COMMUNIST_RED, fb);
         }
     }
 }
@@ -171,17 +158,17 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
 
         //draw_string(20,20, "),:\n\n\n\nuh oh! windows error! your computer is not compatible with windows 12\n\ncontact billgate@realmicrosoft.com to fix this issue!", Colour { r: 255, g: 255, b: 255}, framebuffer);
 
-        draw_horizcentre_string(((fb_height/2)-4)-16, "welcome to windows 12! here is info:", Colour { r: 255, g: 255, b: 255 }, framebuffer);
+        draw_horizcentre_string(((fb_height/2)-4)-16, "welcome to windows 12! here is info:", CUM_WHITE, framebuffer);
 
         // time for some funny com port stuff
         let serial_ports = serial::init_serial();
-        draw_horizcentre_string(((fb_height/2)-4)-8, "serial ports:", Colour { r: 255, g: 255, b: 255 }, framebuffer);
+        draw_horizcentre_string(((fb_height/2)-4)-8, "serial ports:", CUM_WHITE, framebuffer);
 
         for port in 0..serial_ports.ports_enabled.len() {
             if serial_ports.ports_enabled[port] {
-                draw_horizcentre_string(((fb_height/2)-4)+(port as usize*8), serial_ports.ports[port].base.to_string(), Colour { r: 255, g: 255, b: 255 }, framebuffer);
+                draw_horizcentre_string(((fb_height/2)-4)+(port as usize*8), serial_ports.ports[port].base.to_string(), CUM_WHITE, framebuffer);
             } else { // draw in grey
-                draw_horizcentre_string(((fb_height/2)-4)+(port as usize*8), serial_ports.ports[port].base.to_string(), Colour { r: 255, g: 0, b: 0 }, framebuffer);
+                draw_horizcentre_string(((fb_height/2)-4)+(port as usize*8), serial_ports.ports[port].base.to_string(), COMMUNIST_RED, framebuffer);
             }
         }
 
