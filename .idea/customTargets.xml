@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project version="4">
+  <component name="CLionExternalBuildManager">
+    <target id="a92c96a0-6678-4b07-b208-a3b8818b9d4c" name="Xargo" defaultType="TOOL">
+      <configuration id="d781dfcc-e8c6-4528-b0ad-20eeb2514d1e" name="Xargo" toolchainName="Default">
+        <build type="TOOL">
+          <tool actionId="Tool_External Tools_Xargo" />
+        </build>
+      </configuration>
+    </target>
+  </component>
+</project>

@@ -10,3 +10,7 @@ members = [
 
 [dependencies]
 bootloader = "0.10.12"
+spin = "0.9.1"
+[dependencies.lazy_static]
+version = "1.4.0"
+features = ["spin_no_std"]

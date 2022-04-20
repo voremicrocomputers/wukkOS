@@ -1,6 +1,16 @@
+#![feature(abi_x86_interrupt)]
+#![feature(default_alloc_error_handler)]
 #![no_std]
 #![no_main]
 
+use allocator::*;
+
+extern crate alloc;
+
+use alloc::vec::Vec;
+use spin::Mutex;
+use core::arch::asm;
+use lazy_static::lazy_static;
 use bootloader::{entry_point, BootInfo, boot_info};
 use core::panic::PanicInfo;
 use bootloader::boot_info::{FrameBuffer, FrameBufferInfo, PixelFormat};
@@ -10,7 +20,58 @@ use crate::serial::potential_serial_ports;
 mod font;
 mod serial;
 mod internals;
+mod allocator;
 
+pub struct FBInfo {
+    pub fb_mutex: Mutex<Vec<u8>>,
+    pub fb_pixelwidth: Mutex<usize>,
+    pub fb_colourtype: Mutex<u8>,
+    pub fb_pitch: Mutex<usize>,
+    pub fb_width: Mutex<usize>,
+    pub fb_height: Mutex<usize>,
+}
+
+// THIS IS THE ONLY GLOBAL VARIABLE WE WILL EVER HAVE, MARK THIS ON MY FUCKING GRAVE
+//pub static mut FRAMEBUFFER: Option<FBInfo> = None;
+
+lazy_static! {
+    static ref IDT : InterruptDescriptorTable = {
+        let mut idt = InterruptDescriptorTable::new();
+        idt.divide_error.set_handler(internals::errors::generic_error);
+        idt.debug.set_handler(internals::errors::generic_error);
+        idt.dream_mask_sus_version.set_handler(internals::errors::generic_error);
+        idt.breakpoint.set_handler(internals::errors::generic_error);
+        idt.into_detected_overflow.set_handler(internals::errors::generic_error);
+        idt.in_the_fortnite_storm.set_handler(internals::errors::generic_error);
+        idt.owo_whats_this.set_handler(internals::errors::generic_error);
+        idt.device_not_available.set_handler(internals::errors::generic_error);
+        idt.fucky_wucky_twice.set_handler(internals::errors::super_fuck_up_error_with_code);
+        idt.invalid_tss.set_handler(internals::errors::generic_error_with_code);
+        idt.segment_not_present.set_handler(internals::errors::generic_error_with_code);
+        idt.stack_segment_fault.set_handler(internals::errors::generic_error_with_code);
+        idt.uh_oh_we_gotta_hacker_here.set_handler(internals::errors::generic_error_with_code);
+        idt.page_fault.set_handler(internals::errors::generic_error_with_code);
+        idt.x87_floating_point_exception.set_handler(internals::errors::generic_error);
+        idt.alignment_check.set_handler(internals::errors::generic_error_with_code);
+        idt.machine_check.set_handler(internals::errors::super_fuck_up_error);
+        idt.the_point_of_the_mask_float_exception.set_handler(internals::errors::generic_error);
+        idt.virtualization_exception.set_handler(internals::errors::generic_error);
+        idt.vmm_communication_exception.set_handler(internals::errors::generic_error_with_code);
+        idt.security_exception.set_handler(internals::errors::generic_error_with_code);
+        idt
+    };
+
+    static ref FACEBOOK : FBInfo = {
+        FBInfo {
+            fb_mutex: Mutex::new(Vec::new()),
+            fb_pixelwidth: Mutex::new(0),
+            fb_colourtype: Mutex::new(0),
+            fb_pitch: Mutex::new(0),
+            fb_width: Mutex::new(0),
+            fb_height: Mutex::new(0),
+        }
+    };
+}
 
 
 const RAINBOW : [Colour; 6] = [Colour{r:255,g:0,b:0}, Colour{r:255,g:127,b:0}, Colour{r:255,g:255,b:0}, Colour{r:0,g:255,b:0}, Colour{r:0,g:255,b:255}, Colour{r:0,g:0,b:255}];
@@ -28,7 +89,7 @@ fn KernelPanic(msg: KernelError, fb: &mut FrameBuffer) {
     }
 }
 
-fn put_pixel(x: usize, y: usize, color: Colour, fb: &mut FrameBuffer) {
+pub fn put_pixel(x: usize, y: usize, color: Colour, fb: &mut FrameBuffer) {
     let pixelwidth = fb.info().bytes_per_pixel;
     let pitch = fb.info().stride * pixelwidth;
 
@@ -49,7 +110,7 @@ fn put_pixel(x: usize, y: usize, color: Colour, fb: &mut FrameBuffer) {
     }
 }
 
-fn draw_box(x: usize, y: usize, width: usize, height: usize, color: Colour, fb: &mut FrameBuffer) {
+pub fn draw_box(x: usize, y: usize, width: usize, height: usize, color: Colour, fb: &mut FrameBuffer) {
     let pixelwidth = fb.info().bytes_per_pixel;
     let pitch = fb.info().stride * pixelwidth;
 
@@ -92,7 +153,7 @@ fn draw_char(x: usize, y: usize, c: char, color: Colour, fb: &mut FrameBuffer) {
     }
 }
 
-fn draw_string(x: usize, y: usize, s: &str, color: Colour, fb: &mut FrameBuffer) {
+pub fn draw_string(x: usize, y: usize, s: &str, color: Colour, fb: &mut FrameBuffer) {
     let mut x_tmp = x;
     let mut y_tmp = y;
 
@@ -107,7 +168,7 @@ fn draw_string(x: usize, y: usize, s: &str, color: Colour, fb: &mut FrameBuffer)
     }
 }
 
-fn draw_horizcentre_string(y: usize, s: &str, color: Colour, fb: &mut FrameBuffer) {
+pub fn draw_horizcentre_string(y: usize, s: &str, color: Colour, fb: &mut FrameBuffer) {
     let mut x_tmp = (fb.info().horizontal_resolution - s.len() * 8) / 2;
     let mut y_tmp = y;
 
@@ -122,7 +183,7 @@ fn draw_horizcentre_string(y: usize, s: &str, color: Colour, fb: &mut FrameBuffe
     }
 }
 
-fn draw_rainbow_string(x: usize, y: usize, s: &str, fb: &mut FrameBuffer) {
+pub fn draw_rainbow_string(x: usize, y: usize, s: &str, fb: &mut FrameBuffer) {
     let mut x_tmp = x;
     let mut y_tmp = y;
 
@@ -141,22 +202,61 @@ fn draw_rainbow_string(x: usize, y: usize, s: &str, fb: &mut FrameBuffer) {
     }
 }
 
+
 entry_point!(main);
 
 fn main(boot_info: &'static mut BootInfo) -> ! {
 
     if let Some(framebuffer) = boot_info.framebuffer.as_mut() {
+        // set up the framebuffer
+        unsafe {
+            let mut colourtype: u8;
+            if framebuffer.info().pixel_format == PixelFormat::RGB {
+                colourtype = 1;
+            } else {
+                colourtype = 0;
+            }
+            let mut temp_fb = FACEBOOK.fb_mutex.lock();
+            *temp_fb = Vec::from_raw_parts(framebuffer.buffer_mut().as_mut_ptr(), framebuffer.buffer_mut().len(), framebuffer.buffer_mut().len());
+            drop(temp_fb);
+
+            let mut temp_fb_pixel_width = FACEBOOK.fb_pixelwidth.lock();
+            *temp_fb_pixel_width = framebuffer.info().bytes_per_pixel;
+            drop(temp_fb_pixel_width);
+
+            let mut temp_fb_fb_colourtype = FACEBOOK.fb_colourtype.lock();
+            *temp_fb_fb_colourtype = colourtype;
+            drop(temp_fb_fb_colourtype);
+
+            let mut temp_fb_fb_width = FACEBOOK.fb_width.lock();
+            *temp_fb_fb_width = framebuffer.info().horizontal_resolution;
+            drop(temp_fb_fb_width);
+
+            let mut temp_fb_fb_height = FACEBOOK.fb_height.lock();
+            *temp_fb_fb_height = framebuffer.info().vertical_resolution;
+            drop(temp_fb_fb_height);
+
+            let mut temp_fb_fb_pitch = FACEBOOK.fb_pitch.lock();
+            *temp_fb_fb_pitch = framebuffer.info().stride;
+            drop(temp_fb_fb_pitch);
+        }
         // cover the screen in a nice blue
         draw_box(0, 0, framebuffer.info().horizontal_resolution, framebuffer.info().vertical_resolution, Colour{r:30,g:129,b:176}, framebuffer);
 
         let fb_width = framebuffer.info().horizontal_resolution;
         let fb_height = framebuffer.info().vertical_resolution;
 
+        IDT.load();
+
         // draw a test string
         //draw_string(20, 20, "i love drinking cum\nnewline test", Colour { r: 255, g: 0, b: 255 }, framebuffer);
         //draw_rainbow_string(20, 40, "gay sex", framebuffer);
 
         //draw_string(20,20, "),:\n\n\n\nuh oh! windows error! your computer is not compatible with windows 12\n\ncontact billgate@realmicrosoft.com to fix this issue!", Colour { r: 255, g: 255, b: 255}, framebuffer);
+
+        unsafe {
+            asm!("int3", options(nomem, nostack));
+        }
 
         draw_horizcentre_string(((fb_height/2)-4)-16, "welcome to windows 12! here is info:", CUM_WHITE, framebuffer);
 
