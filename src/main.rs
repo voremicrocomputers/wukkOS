@@ -16,6 +16,7 @@ use core::panic::PanicInfo;
 use bootloader::boot_info::{FrameBuffer, FrameBufferInfo, PixelFormat};
 use crate::internals::WhyDoTheyCallItOvenWhenYouOfInTheColdFoodOfOutHotEatTheFood::*;
 use crate::serial::potential_serial_ports;
+use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 
 mod font;
 mod serial;
@@ -37,27 +38,7 @@ pub struct FBInfo {
 lazy_static! {
     static ref IDT : InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
-        idt.divide_error.set_handler(internals::errors::generic_error);
-        idt.debug.set_handler(internals::errors::generic_error);
-        idt.dream_mask_sus_version.set_handler(internals::errors::generic_error);
-        idt.breakpoint.set_handler(internals::errors::generic_error);
-        idt.into_detected_overflow.set_handler(internals::errors::generic_error);
-        idt.in_the_fortnite_storm.set_handler(internals::errors::generic_error);
-        idt.owo_whats_this.set_handler(internals::errors::generic_error);
-        idt.device_not_available.set_handler(internals::errors::generic_error);
-        idt.fucky_wucky_twice.set_handler(internals::errors::super_fuck_up_error_with_code);
-        idt.invalid_tss.set_handler(internals::errors::generic_error_with_code);
-        idt.segment_not_present.set_handler(internals::errors::generic_error_with_code);
-        idt.stack_segment_fault.set_handler(internals::errors::generic_error_with_code);
-        idt.uh_oh_we_gotta_hacker_here.set_handler(internals::errors::generic_error_with_code);
-        idt.page_fault.set_handler(internals::errors::generic_error_with_code);
-        idt.x87_floating_point_exception.set_handler(internals::errors::generic_error);
-        idt.alignment_check.set_handler(internals::errors::generic_error_with_code);
-        idt.machine_check.set_handler(internals::errors::super_fuck_up_error);
-        idt.the_point_of_the_mask_float_exception.set_handler(internals::errors::generic_error);
-        idt.virtualization_exception.set_handler(internals::errors::generic_error);
-        idt.vmm_communication_exception.set_handler(internals::errors::generic_error_with_code);
-        idt.security_exception.set_handler(internals::errors::generic_error_with_code);
+        idt.breakpoint.set_handler_fn(internals::errors::breakpoint_exception);
         idt
     };
 
@@ -237,7 +218,7 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
             drop(temp_fb_fb_height);
 
             let mut temp_fb_fb_pitch = FACEBOOK.fb_pitch.lock();
-            *temp_fb_fb_pitch = framebuffer.info().stride;
+            *temp_fb_fb_pitch = framebuffer.info().stride * framebuffer.info().bytes_per_pixel;
             drop(temp_fb_fb_pitch);
         }
         // cover the screen in a nice blue
@@ -254,9 +235,8 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
 
         //draw_string(20,20, "),:\n\n\n\nuh oh! windows error! your computer is not compatible with windows 12\n\ncontact billgate@realmicrosoft.com to fix this issue!", Colour { r: 255, g: 255, b: 255}, framebuffer);
 
-        unsafe {
-            asm!("int3", options(nomem, nostack));
-        }
+        x86_64::instructions::interrupts::int3();
+        /*
 
         draw_horizcentre_string(((fb_height/2)-4)-16, "welcome to windows 12! here is info:", CUM_WHITE, framebuffer);
 
@@ -275,7 +255,9 @@ fn main(boot_info: &'static mut BootInfo) -> ! {
 
         //draw_rainbow_string((fb_width/2) - ((7*8)/2), (fb_height/2) - 4, "gay sex", framebuffer);
 
+         */
     }
+
 
     loop{}
 }
