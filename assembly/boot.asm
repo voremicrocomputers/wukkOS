@@ -1,23 +1,31 @@
-[bits 16]
-[org 0x7c00]
+    ;; bootstrap code from osdev.org
+    MBALIGN equ 1 << 0
+    MEMINFO equ 1 << 1
+    FLAGS equ MBALIGN | MEMINFO
+    MAGIC equ 0x1BADB002
+    CHECKSUM equ -(MAGIC + FLAGS)
 
+    section .multiboot
+    align 4
+    dd MAGIC
+    dd FLAGS
+    dd CHECKSUM
 
-xor ax, ax
-mov ds, ax
-mov es,ax
+    section .bss
+    align 16
+stack_bottom:
+    resb 16384                  ; 16 KiB stack
+stack_top:
 
-cli
-mov ss,bx
-mov sp,ax
-sti
+    section .text
+    global _start:function (_start.end - _start)
+_start:
+    mov esp, stack_top
 
-; set graphics mode
-mov ax, 00h
-mov ah, 0x00
-int 0x10
+    extern kernel_main
+    call kernel_main
 
-; jump after bootloader
-jmp 0x07E0:0x0000
-
-times 510-($-$$) db 0
-dw 0xAA55
+    cli
+.hang: hlt
+    jmp .hang
+.end:
