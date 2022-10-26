@@ -34,3 +34,6 @@ Cargo.lock
 
 #/target
 #Cargo.lock
+/boot.o
+/build/
+/OVMF-pure-efi.fd

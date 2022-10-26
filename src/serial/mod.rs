@@ -5,6 +5,8 @@ use core::borrow::{Borrow, BorrowMut};
 use core::ops::Deref;
 
 pub mod ps2;
+pub mod terminal_helpers;
+pub mod terminal;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum potential_serial_ports {
@@ -82,6 +84,12 @@ impl Port {
     pub fn transmit(&self, data: u8) {
         while !self.is_transmit_empty() {}
         command(self.base as u16 + serial_offsets::DATA as u16, data);
+    }
+
+    pub fn transmit_string(&self, data: &str) {
+        for c in data.chars() {
+            self.transmit(c as u8);
+        }
     }
 
     fn is_recv_full(&self) -> bool {
