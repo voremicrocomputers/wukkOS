@@ -30,6 +30,8 @@ mod internals;
 mod allocator;
 mod security;
 mod boot;
+mod memory;
+mod macros;
 
 lazy_static! {
     static ref IDT: InterruptDescriptorTable = {
@@ -94,17 +96,17 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
         }
     };
 
-    ST.logln("");
-    ST.logln("");
-    ST.logln("");
-    ST.logln("welcome to wukkOS!");
-    ST.logln("(c) 2022 Real Microsoft, LLC");
-    ST.log("initialising memory maps...");
+    println!();
+    println!();
+    println!();
+    println!("welcome to wukkOS!");
+    println!("(c) 2022 Real Microsoft, LLC");
+    print!("initialising memory maps...");
     let mem_areas = kern_info.get_memory_areas();
-    ST.logln("[OK]");
-    ST.logln("memory map:");
+    println!("[OK]");
+    println!("memory map:");
     for area in mem_areas {
-        ST.logln(format!("{:x} - {:x} : {}", area.start, area.end, match area.area_type {
+        println!("{:x} - {:x} : {}", area.start, area.end, match area.area_type {
             boot::MemoryType::Available => "Available",
             boot::MemoryType::Reserved => "Reserved",
             boot::MemoryType::AcpiReclaimable => "ACPI Reclaimable",
@@ -113,7 +115,7 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
             boot::MemoryType::Kernel => "Kernel",
             boot::MemoryType::Bootloader => "Bootloader",
             boot::MemoryType::Unknown(_) => "Unknown"
-        }).as_str());
+        });
     }
 
     loop {}
