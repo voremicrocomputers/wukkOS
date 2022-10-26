@@ -1,33 +1,23 @@
 #![feature(abi_x86_interrupt)]
 #![feature(default_alloc_error_handler)]
 #![feature(panic_info_message)]
+#![feature(asm_const)]
 #![no_std]
 #![no_main]
 
-use alloc::boxed::Box;
-use alloc::format;
-use alloc::string::ToString;
-use alloc::sync::Arc;
-use allocator::*;
-
-extern crate alloc;
 extern crate rlibc;
 
-use alloc::vec::Vec;
-use spin::Mutex;
-use core::arch::asm;
-use core::ops::Deref;
 use lazy_static::lazy_static;
 use core::panic::PanicInfo;
+use multiboot2::MemoryAreaType;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 use crate::boot::KernelInfo;
 use crate::internals::WhyDoTheyCallItOvenWhenYouOfInTheColdFoodOfOutHotEatTheFood::*;
-use crate::serial::{Port, potential_serial_ports, terminal_helpers, terminal::ST};
+use crate::serial::terminal::ST;
 
 mod font;
 mod serial;
 mod internals;
-mod allocator;
 mod security;
 mod boot;
 mod memory;
@@ -49,25 +39,26 @@ const RAINBOW : [Colour; 6] = [Colour{r:255,g:0,b:0}, Colour{r:255,g:127,b:0}, C
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
-    ST.logln("---KERNEL FUCKY WUKKY UWU (panic)---");
-    ST.logln(if let Some(s) = info.payload().downcast_ref::<&str>() {
-        format!("panic payload: {s:?}")
+    println!("---KERNEL FUCKY WUKKY UWU (panic)---");
+    if let Some(s) = info.payload().downcast_ref::<&str>() {
+        println!("panic payload: {s:?}")
     } else {
-        format!("no panic payload")
-    }.as_str());
-    ST.logln(if let Some(msg) = info.message() {
-        format!("panic msg: {}", msg.as_str().unwrap_or("no message"))
+        println!("no panic payload")
+    };
+   if let Some(msg) = info.message() {
+        println!("panic msg: {}", msg.as_str().unwrap_or("no message"))
     } else {
-        "no message".to_string()
-    }.as_str());
-    ST.logln(if let Some(location) = info.location() {
-        format!("location: file {} line {}", location.file(), location.line())
+        println!("no message");
+    }
+    if let Some(location) = info.location() {
+        println!("location: file {} line {}", location.file(), location.line());
     } else {
-        "no location".to_string()
-    }.as_str());
+        println!("no location");
+    };
     loop {}
 }
 
+#[repr(C)]
 pub struct KernelArgs {
     #[cfg(feature = "f_multiboot2")]
     multiboot_information_address: usize
@@ -89,14 +80,6 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
         ST.init_from_port(*port);
     }
 
-    let kern_info: Box<dyn boot::KernelInfo> = {
-        #[cfg(feature = "f_multiboot2")]
-        {
-            let mut kern_info = boot::multiboot2::Multiboot2Bootloader::default();
-            kern_info.init_from_kernel_args(args);
-            Box::new(kern_info)
-        }
-    };
 
     println!();
     println!();
@@ -104,19 +87,17 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
     println!("welcome to wukkOS!");
     println!("(c) 2022 Real Microsoft, LLC");
     print!("initialising memory maps...");
-    let mem_areas = kern_info.get_memory_areas();
+    let kern_info = KernelInfo::init_from_kernel_args(args);
+    let mut mem_areas = kern_info.memory_areas();
     println!("[OK]");
     println!("memory map:");
-    for area in mem_areas {
-        println!("{:x} - {:x} : {}", area.start, area.end, match area.area_type {
-            boot::MemoryType::Available => "Available",
-            boot::MemoryType::Reserved => "Reserved",
-            boot::MemoryType::AcpiReclaimable => "ACPI Reclaimable",
-            boot::MemoryType::Nvs => "NVS",
-            boot::MemoryType::BadMemory => "Bad Memory",
-            boot::MemoryType::Kernel => "Kernel",
-            boot::MemoryType::Bootloader => "Bootloader",
-            boot::MemoryType::Unknown(_) => "Unknown"
+    while let Some(area) = mem_areas.next() {
+        println!("{:x} - {:x} : {}", area.start_address(), area.end_address(), match area.typ() {
+            MemoryAreaType::Available => "available",
+            MemoryAreaType::Reserved => "reserved",
+            MemoryAreaType::AcpiAvailable => "ACPI available",
+            MemoryAreaType::ReservedHibernate => "reserved for hibernation",
+            MemoryAreaType::Defective => "defective",
         });
     }
 

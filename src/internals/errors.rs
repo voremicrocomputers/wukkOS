@@ -21,7 +21,7 @@ pub extern "x86-interrupt" fn double_fault(stack_frame: InterruptStackFrame, _er
     loop {}
 }
 
-pub extern "x86-interrupt" fn page_fault(stack_frame: InterruptStackFrame, error_code: PageFaultErrorCode) -> ! {
+pub extern "x86-interrupt" fn page_fault(stack_frame: InterruptStackFrame, error_code: PageFaultErrorCode) {
     println!("---KERNEL FUCKY WUKKY UWU---");
     println!("page fault!");
     println!("accessed address: {:?}", Cr2::read());
