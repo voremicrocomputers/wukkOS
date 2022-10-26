@@ -6,19 +6,11 @@ BdsDxe: starting Boot0001 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1
 
 WARNING: no console will be available to OS
 error: no suitable video mode found.
-hello from wukkOS!
+using serial port 0 as console
+
 
 
 welcome to wukkOS!
 (c) 2022 Real Microsoft, LLC
 initialising memory maps...[OK]
-memory map:
-0 - a0000 : available
-100000 - 800000 : available
-800000 - 808000 : reserved for hibernation
-808000 - 80b000 : available
-80b000 - 80c000 : reserved for hibernation
-80c000 - 810000 : available
-810000 - 900000 : reserved for hibernation
-900000 - 78ef000 : available
-78ef000 - 79ef000 : reserved
+L4 entry 0: PageTableEntry { addr: PhysAddr(0x128000), flags: PRESENT | WRITABLE | ACCESSED }

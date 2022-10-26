@@ -11,8 +11,10 @@ use lazy_static::lazy_static;
 use core::panic::PanicInfo;
 use multiboot2::MemoryAreaType;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
+use x86_64::VirtAddr;
 use crate::boot::KernelInfo;
 use crate::internals::WhyDoTheyCallItOvenWhenYouOfInTheColdFoodOfOutHotEatTheFood::*;
+use crate::memory::active_level_4_table;
 use crate::serial::terminal::ST;
 
 mod font;
@@ -78,6 +80,7 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
     if let Some(i) = console_port {
         let port = &serial_ports.ports[i];
         ST.init_from_port(*port);
+        println!("using serial port {} as console", i);
     }
 
 
@@ -90,15 +93,12 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
     let kern_info = KernelInfo::init_from_kernel_args(args);
     let mut mem_areas = kern_info.memory_areas();
     println!("[OK]");
-    println!("memory map:");
-    while let Some(area) = mem_areas.next() {
-        println!("{:x} - {:x} : {}", area.start_address(), area.end_address(), match area.typ() {
-            MemoryAreaType::Available => "available",
-            MemoryAreaType::Reserved => "reserved",
-            MemoryAreaType::AcpiAvailable => "ACPI available",
-            MemoryAreaType::ReservedHibernate => "reserved for hibernation",
-            MemoryAreaType::Defective => "defective",
-        });
+    let l4_table = active_level_4_table(VirtAddr::new(0));
+
+    for (i, entry) in l4_table.iter().enumerate() {
+        if !entry.is_unused() {
+            println!("L4 entry {}: {:?}", i, entry);
+        }
     }
 
     loop {}

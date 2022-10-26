@@ -22,7 +22,7 @@ clean:
 run: $(final) $(iso)
 	@qemu-system-$(arch) -bios $(efi_bios) -cdrom $(iso) \
 -chardev stdio,id=char0,mux=on,logfile=serial.log,signal=off \
-  -serial chardev:char0 -mon chardev=char0
+  -serial chardev:char0 -mon chardev=char0 -m 512M
 
 quick_invalidate:
 	@echo "quick invalidation"
