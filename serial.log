@@ -11,3 +11,11 @@ BdsDxe: starting Boot0001 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1
 
 welcome to wukkOS!
 (c) 2022 Real Microsoft, LLC
+initialising memory maps...[OK]
+memory map:
+0 - a0000 : Available
+100000 - 800000 : Available
+808000 - 80b000 : Available
+80c000 - 810000 : Available
+900000 - 78ef000 : Available
+7bff000 - 7f58000 : Available

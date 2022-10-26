@@ -11,7 +11,7 @@ assembly_source_files := $(wildcard arch/$(arch)/*.asm)
 assembly_object_files := $(patsubst arch/$(arch)/%.asm, \
 							build/arch/$(arch)/%.o, $(assembly_source_files))
 
-.PHONY: all clean run iso
+.PHONY: all clean run iso quick_invalidate
 
 all: $(final) $(iso)
 
@@ -23,6 +23,11 @@ run: $(final) $(iso)
 	@qemu-system-$(arch) -bios $(efi_bios) -cdrom $(iso) \
 -chardev stdio,id=char0,mux=on,logfile=serial.log,signal=off \
   -serial chardev:char0 -mon chardev=char0
+
+quick_invalidate:
+	@echo "quick invalidation"
+	@rm -rf build/arch/$(arch)
+	@rm -rf $(kernel)
 
 iso: $(iso)
 
@@ -44,8 +49,3 @@ $(kernel):
 build/arch/$(arch)/%.o: arch/$(arch)/%.asm
 	@mkdir -p $(shell dirname $@)
 	@nasm -felf64 $< -o $@
-
-quick_invalidate:
-	@echo "quick invalidation"
-	@rm -rf build/arch/$(arch)
-	@rm -rf $(kernel)
