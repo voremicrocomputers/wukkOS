@@ -74,6 +74,17 @@ pub fn read(port: u16) -> u8 {
     data
 }
 
+// dummy functions for non-x86
+#[cfg(not(any(target_arch="x86", target_arch="x86_64")))]
+pub fn command(port: u16, data: u8) {
+    unimplemented!()
+}
+
+#[cfg(not(any(target_arch="x86", target_arch="x86_64")))]
+pub fn read(port: u16) -> u8 {
+    unimplemented!()
+}
+
 impl Port {
     fn is_transmit_empty(&self) -> bool {
         let status = read(self.base as u16 + serial_offsets::LINE_STATUS as u16);

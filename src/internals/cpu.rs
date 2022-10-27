@@ -47,23 +47,23 @@ pub fn get_apic_base() -> usize {
     ((edx as usize) << 32) | (eax as usize)
 }
 
-pub fn enable_apic(mem_mapper: &mut OffsetPageTable, frame_alloc: &mut BootInfoFrameAllocator) {
+pub fn enable_apic() {
     // PIC should be disabled by now
     // now enable local apic
     // 1. set bit 8 of spurious interrupt vector register
     let sivr_addr = 0xfee000f0;
-    let sivr = read_phys_memory32(mem_mapper, frame_alloc, sivr_addr);
-    write_phys_memory32(mem_mapper, frame_alloc, sivr_addr, sivr | (1 << 8));
+    let sivr = read_phys_memory32(sivr_addr);
+    write_phys_memory32(sivr_addr, sivr | (1 << 8));
 }
 
-pub fn apic_read_io(mem_mapper: &mut OffsetPageTable, frame_alloc: &mut BootInfoFrameAllocator, ioapicaddr: usize, reg: u32) -> u32 {
-    write_phys_memory32(mem_mapper, frame_alloc, ioapicaddr as u32, reg);
-    read_phys_memory32(mem_mapper, frame_alloc, ioapicaddr as u32 + 0x10)
+pub fn apic_read_io(ioapicaddr: usize, reg: u32) -> u32 {
+    write_phys_memory32(ioapicaddr as u32, reg);
+    read_phys_memory32(ioapicaddr as u32 + 0x10)
 }
 
-pub fn apic_write_io(mem_mapper: &mut OffsetPageTable, frame_alloc: &mut BootInfoFrameAllocator, ioapicaddr: usize, reg: u32, val: u32) {
-    write_phys_memory32(mem_mapper, frame_alloc, ioapicaddr as u32, reg);
-    write_phys_memory32(mem_mapper, frame_alloc, ioapicaddr as u32 + 0x10, val);
+pub fn apic_write_io(ioapicaddr: usize, reg: u32, val: u32) {
+    write_phys_memory32(ioapicaddr as u32, reg);
+    write_phys_memory32(ioapicaddr as u32 + 0x10, val);
 }
 
 pub fn disable_pic() {
@@ -83,17 +83,17 @@ pub fn disable_pic() {
     command(0xa1, 0xff);
 }
 
-pub fn ioapic_set_irq(mem_mapper: &mut OffsetPageTable, frame_alloc: &mut BootInfoFrameAllocator, ioapicaddr: usize, irq: u8, apic_id: u64, vector:u8) {
+pub fn ioapic_set_irq(ioapicaddr: usize, irq: u8, apic_id: u64, vector:u8) {
     let lo_index: u32 = (0x10 + irq*2    ) as u32;
     let hi_index: u32 = (0x10 + irq*2 + 1) as u32;
 
-    let mut high = apic_read_io(mem_mapper, frame_alloc, ioapicaddr, hi_index);
+    let mut high = apic_read_io(ioapicaddr, hi_index);
     // set apic id
     high &= !(0xff000000);
     high |= (apic_id as u32) << 24;
-    apic_write_io(mem_mapper, frame_alloc, ioapicaddr, hi_index, high);
+    apic_write_io(ioapicaddr, hi_index, high);
 
-    let mut low = apic_read_io(mem_mapper, frame_alloc, ioapicaddr, lo_index);
+    let mut low = apic_read_io( ioapicaddr, lo_index);
 
     // unmask
     low &= !(1 << 16);
@@ -105,7 +105,7 @@ pub fn ioapic_set_irq(mem_mapper: &mut OffsetPageTable, frame_alloc: &mut BootIn
     low &= !(0xff);
     low |= vector as u32;
 
-    apic_write_io(mem_mapper, frame_alloc, ioapicaddr, lo_index, low);
+    apic_write_io(ioapicaddr, lo_index, low);
 }
 
 pub fn apic_eoi() {
@@ -136,7 +136,7 @@ pub extern "x86-interrupt" fn keyboard_irq(stack_frame: InterruptStackFrame) {
 }
 
 // todo! we should abstract this away
-pub fn setup_apic_interrupts(mem_mapper: &mut OffsetPageTable, frame_alloc: &mut BootInfoFrameAllocator, ioapicaddr: usize) {
+pub fn setup_apic_interrupts(ioapicaddr: usize) {
     // set keyboard irq to interrupt 40
-    ioapic_set_irq(mem_mapper, frame_alloc, ioapicaddr, 1, 0, 40);
+    ioapic_set_irq(ioapicaddr, 1, 0, 40);
 }

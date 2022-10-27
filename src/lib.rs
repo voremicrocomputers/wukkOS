@@ -25,6 +25,7 @@ use x86_64::registers::segmentation::{CS, Segment, SS};
 use x86_64::structures::paging::Translate;
 use crate::boot::KernelInfo;
 use crate::internals::WhyDoTheyCallItOvenWhenYouOfInTheColdFoodOfOutHotEatTheFood::*;
+use crate::memory::{FRAME_ALLOC, MEM_MAPPER};
 use crate::serial::terminal::ST;
 
 mod font;
@@ -165,17 +166,15 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
     let kern_info = Mutex::new(KernelInfo::init_from_kernel_args(args));
 
     // memory stuff
-    let mut mapper = None;
-    let mut frame_allocator = None;
     {
         print!("initialising mapper...");
-        mapper = Some(unsafe { memory::init(VirtAddr::new(0)) });
+        MEM_MAPPER.lock().replace(unsafe { memory::init(VirtAddr::new(0)) });
         println!("[OK]");
         print!("initialising frame allocator...");
-        frame_allocator = Some(unsafe { memory::BootInfoFrameAllocator::init(kern_info) });
+        FRAME_ALLOC.lock().replace(unsafe { memory::BootInfoFrameAllocator::init(kern_info) });
         println!("[OK]");
         print!("initialising heap...");
-        memory::allocator::init_heap(mapper.as_mut().unwrap(), frame_allocator.as_mut().unwrap()).expect("heap init failed");
+        memory::allocator::init_heap(MEM_MAPPER.lock().as_mut().unwrap(), FRAME_ALLOC.lock().as_mut().unwrap()).expect("heap init failed");
         println!("[OK]");
 
         print!("testing heap...");
@@ -206,10 +205,10 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
         unsafe { internals::cpu::disable_pic() };
         println!("[OK]");
         print!("initialising apic...");
-        unsafe { internals::cpu::enable_apic(mapper.as_mut().unwrap(), frame_allocator.as_mut().unwrap()) };
+        unsafe { internals::cpu::enable_apic() };
         println!("[OK]");
         print!("setting up apic interrupts...");
-        unsafe { internals::cpu::setup_apic_interrupts(mapper.as_mut().unwrap(), frame_allocator.as_mut().unwrap()) };
+        unsafe { internals::cpu::setup_apic_interrupts() };
         println!("[OK]");
         // enable interrupts
         x86_64::instructions::interrupts::enable();

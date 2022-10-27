@@ -2,8 +2,14 @@ pub mod allocator;
 
 use alloc::boxed::Box;
 use alloc::sync::Arc;
+use lazy_static::lazy_static;
 use x86_64::structures::paging::{FrameAllocator, Mapper, OffsetPageTable, PageTable, PhysFrame, Size4KiB, Translate};
 use x86_64::{PhysAddr, VirtAddr};
+
+lazy_static!{
+    pub static ref MEM_MAPPER: Mutex<Option<OffsetPageTable>> = Mutex::new(None);
+    pub static ref FRAME_ALLOC: Mutex<Option<BootInfoFrameAllocator>> = Mutex::new(None);
+}
 
 pub struct Locked<A> {
     inner: spin::Mutex<A>,
@@ -86,26 +92,26 @@ unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
     }
 }
 
-pub fn read_phys_memory32(mem_mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFrameAllocator, addr: u32) -> u32 {
+pub fn read_phys_memory32(addr: u32) -> u32 {
     let initaladdr = VirtAddr::new(addr as u64);
-    let addr = unsafe { mem_mapper.translate_addr(initaladdr) };
+    let addr = unsafe { MEM_MAPPER.lock().as_mut().unwrap().translate_addr(initaladdr) };
     if let Some(addr) = addr {
         let addr = addr.as_u64() as *const u32;
         unsafe { *addr }
     } else {
         debug!("read_phys_memory32: addr {:x} not mapped", initaladdr.as_u64());
         // map the page
-        let frame = frame_allocator.allocate_frame().unwrap();
+        let frame = FRAME_ALLOC.lock().as_mut().unwrap().allocate_frame().unwrap();
         debug!("allocated frame: {:?}", frame);
         let flags = x86_64::structures::paging::PageTableFlags::PRESENT | x86_64::structures::paging::PageTableFlags::WRITABLE;
         let page = x86_64::structures::paging::Page::containing_address(initaladdr);
         debug!("mapped page: {:?}", page);
-        let map_to_result = unsafe { mem_mapper.map_to(page, frame, flags, frame_allocator) };
+        let map_to_result = unsafe { MEM_MAPPER.lock().as_mut().unwrap().map_to(page, frame, flags, FRAME_ALLOC.lock().as_mut().unwrap()) };
         debug!("map_to_result: {:?}", map_to_result);
         if map_to_result.is_err() {
             panic!("Failed to map page");
         }
-        let addr = unsafe { mem_mapper.translate_addr(initaladdr) };
+        let addr = unsafe { MEM_MAPPER.lock().as_mut().unwrap().translate_addr(initaladdr) };
         if let Some(addr) = addr {
             let addr = addr.as_u64() as *const u32;
             unsafe { *addr }
@@ -115,26 +121,26 @@ pub fn read_phys_memory32(mem_mapper: &mut OffsetPageTable, frame_allocator: &mu
     }
 }
 
-pub fn write_phys_memory32(mem_mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFrameAllocator, addr: u32, value: u32) {
+pub fn write_phys_memory32(addr: u32, value: u32) {
     let initaladdr = VirtAddr::new(addr as u64);
-    let addr = unsafe { mem_mapper.translate_addr(initaladdr) };
+    let addr = unsafe { MEM_MAPPER.lock().as_mut().unwrap().translate_addr(initaladdr) };
     if let Some(addr) = addr {
         let addr = addr.as_u64() as *mut u32;
         unsafe { *addr = value };
     } else {
         debug!("write_phys_memory32: addr {:x} not mapped", initaladdr.as_u64());
         // map the page
-        let frame = frame_allocator.allocate_frame().unwrap();
+        let frame = FRAME_ALLOC.lock().as_mut().unwrap().allocate_frame().unwrap();
         debug!("allocated frame: {:?}", frame);
         let flags = x86_64::structures::paging::PageTableFlags::PRESENT | x86_64::structures::paging::PageTableFlags::WRITABLE;
         let page = x86_64::structures::paging::Page::containing_address(initaladdr);
         debug!("mapped page: {:?}", page);
-        let map_to_result = unsafe { mem_mapper.map_to(page, frame, flags, frame_allocator) };
+        let map_to_result = unsafe { MEM_MAPPER.lock().as_mut().unwrap().map_to(page, frame, flags, FRAME_ALLOC.lock().as_mut().unwrap()) };
         debug!("map_to_result: {:?}", map_to_result);
         if map_to_result.is_err() {
             panic!("Failed to map page");
         }
-        let addr = unsafe { mem_mapper.translate_addr(initaladdr) };
+        let addr = unsafe { MEM_MAPPER.lock().as_mut().unwrap().translate_addr(initaladdr) };
         if let Some(addr) = addr {
             let addr = addr.as_u64() as *mut u32;
             unsafe { *addr = value };
