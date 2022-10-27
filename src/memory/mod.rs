@@ -3,6 +3,22 @@ pub mod allocator;
 use x86_64::structures::paging::{FrameAllocator, OffsetPageTable, PageTable, PhysFrame, Size4KiB};
 use x86_64::{PhysAddr, VirtAddr};
 
+pub struct Locked<A> {
+    inner: spin::Mutex<A>,
+}
+
+impl<A> Locked<A> {
+    pub const fn new(inner: A) -> Self {
+        Locked {
+            inner: spin::Mutex::new(inner),
+        }
+    }
+
+    pub fn lock(&self) -> spin::MutexGuard<A> {
+        self.inner.lock()
+    }
+}
+
 pub unsafe fn init(phys_mem_offset: VirtAddr) -> OffsetPageTable<'static> {
     let level_4_table = active_level_4_table(phys_mem_offset);
     OffsetPageTable::new(level_4_table, phys_mem_offset)

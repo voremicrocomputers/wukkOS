@@ -2,6 +2,7 @@
 #![feature(default_alloc_error_handler)]
 #![feature(panic_info_message)]
 #![feature(asm_const)]
+#![feature(const_mut_refs)]
 #![feature(alloc_error_handler)]
 #![no_std]
 #![no_main]
