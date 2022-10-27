@@ -4,7 +4,6 @@ use core::arch::asm;
 use core::borrow::{Borrow, BorrowMut};
 use core::ops::Deref;
 
-pub mod ps2;
 pub mod terminal_helpers;
 pub mod terminal;
 
@@ -60,14 +59,14 @@ pub struct SerialPorts {
 }
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-fn command(port: u16, data: u8) {
+pub fn command(port: u16, data: u8) {
     unsafe {
         asm!("out dx, al", in("al") data, in("dx") port);
     }
 }
 
 #[cfg(any(target_arch="x86", target_arch="x86_64"))]
-fn read(port: u16) -> u8 {
+pub fn read(port: u16) -> u8 {
     let mut data: u8;
     unsafe {
         asm!("in al, dx", out("al") data, in("dx") port);

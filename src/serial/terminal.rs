@@ -2,6 +2,7 @@ use core::fmt;
 use core::ops::Deref;
 use lazy_static::lazy_static;
 use spin::Mutex;
+use x86_64::instructions::interrupts::without_interrupts;
 use crate::serial::Port;
 
 pub struct SerialTerminal {
@@ -32,24 +33,30 @@ impl SerialTerminal {
     }
 
     pub fn log(&self, message: &str) {
-        if let Some(port) = self.port.lock().deref() {
-            port.transmit_string(message);
-        }
+        without_interrupts(|| {
+            if let Some(port) = self.port.lock().deref() {
+                port.transmit_string(message);
+            }
+        });
     }
 
     pub fn logln(&self, message: &str) {
-        if let Some(port) = self.port.lock().deref() {
-            port.transmit_string(message);
-            port.transmit_string("\r\n");
-        }
+        without_interrupts(|| {
+            if let Some(port) = self.port.lock().deref() {
+                port.transmit_string(message);
+                port.transmit_string("\r\n");
+            }
+        });
     }
 }
 
 impl fmt::Write for SerialTerminalWriter {
     fn write_str(&mut self, s: &str) -> fmt::Result {
-        if let Some(port) = self.port.lock().deref() {
-            port.transmit_string(s);
-        }
+        without_interrupts(|| {
+            if let Some(port) = self.port.lock().deref() {
+                port.transmit_string(s);
+            }
+        });
         Ok(())
     }
 }

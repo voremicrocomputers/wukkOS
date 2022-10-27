@@ -1,8 +1,8 @@
 pub mod errors;
+pub mod interrupts;
+pub mod cpu;
 
 pub mod WhyDoTheyCallItOvenWhenYouOfInTheColdFoodOfOutHotEatTheFood {
-    use core::arch::asm;
-    use core::marker::PhantomData;
 
     #[derive(Clone, Copy)]
     pub struct Point {

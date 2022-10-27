@@ -12,12 +12,16 @@ extern crate alloc;
 
 use alloc::rc::Rc;
 use alloc::vec;
+use core::arch::asm;
 use lazy_static::lazy_static;
 use core::panic::PanicInfo;
 use multiboot2::MemoryAreaType;
 use spin::Mutex;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
+use x86_64::structures::gdt::{GlobalDescriptorTable, Descriptor};
+use x86_64::structures::tss::TaskStateSegment;
 use x86_64::{PhysAddr, VirtAddr};
+use x86_64::registers::segmentation::{CS, Segment, SS};
 use x86_64::structures::paging::Translate;
 use crate::boot::KernelInfo;
 use crate::internals::WhyDoTheyCallItOvenWhenYouOfInTheColdFoodOfOutHotEatTheFood::*;
@@ -32,11 +36,16 @@ mod memory;
 mod macros;
 
 lazy_static! {
+    static ref GDT: Mutex<GlobalDescriptorTable> = {
+        let mut gdt = GlobalDescriptorTable::new();
+        Mutex::new(gdt)
+    };
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
         idt.breakpoint.set_handler_fn(internals::errors::breakpoint_exception);
         idt.double_fault.set_handler_fn(internals::errors::double_fault);
         idt.page_fault.set_handler_fn(internals::errors::page_fault);
+        idt[40].set_handler_fn(internals::cpu::keyboard_irq);
         idt
     };
 }
@@ -93,6 +102,60 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
         println!("using serial port {} as console", i);
     }
 
+    // temporarily disable interrupts
+    x86_64::instructions::interrupts::disable();
+    println!("debug: setup GDT");
+    // load TSS
+    static mut tss: TaskStateSegment = TaskStateSegment::new();
+    {
+        unsafe {
+            tss.interrupt_stack_table[0] = {
+                const STACK_SIZE: usize = 4096 * 5;
+                static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+                let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
+                let stack_end = stack_start + STACK_SIZE;
+                stack_end
+            };
+            // set word at offset 102 to 0x68 and last two bytes of the tss to 0xffff
+            // this is a hack to make the tss valid
+            let tss_ptr = &tss as *const TaskStateSegment as *mut u8;
+            unsafe {
+                *tss_ptr.add(102) = 0x68;
+                *tss_ptr.add(104) = 0xff;
+                *tss_ptr.add(105) = 0xff;
+            }
+        }
+        let kcs = GDT.lock().add_entry(Descriptor::kernel_code_segment());
+        let kds = GDT.lock().add_entry(Descriptor::kernel_data_segment());
+        let tsss = unsafe { GDT.lock().add_entry(Descriptor::tss_segment(&tss)) };
+        // load GDT
+        unsafe {
+            GDT.lock().load_unsafe();
+        }
+        println!("debug: GDT loaded");
+        // set code segment to kernel code segment
+        unsafe {
+            CS::set_reg(kcs);
+        }
+        println!("debug: CS set");
+        // set data segment to kernel data segment
+        unsafe {
+            SS::set_reg(kds);
+        }
+        println!("debug: SS set");
+        // load TSS
+        unsafe {
+            x86_64::instructions::tables::load_tss(tsss);
+        }
+        println!("debug: TSS loaded");
+
+        // load IDT
+        IDT.load();
+        println!("debug: IDT loaded");
+        // enable interrupts
+        x86_64::instructions::interrupts::enable();
+    }
+
 
     println!();
     println!();
@@ -100,28 +163,58 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
     println!("welcome to wukkOS!");
     println!("(c) 2022 Real Microsoft, LLC");
     let kern_info = Mutex::new(KernelInfo::init_from_kernel_args(args));
-    print!("initialising mapper...");
-    let mut mapper = unsafe { memory::init(VirtAddr::new(0)) };
-    println!("[OK]");
-    print!("initialising frame allocator...");
-    let mut frame_allocator = unsafe { memory::BootInfoFrameAllocator::init(kern_info) };
-    println!("[OK]");
-    print!("initialising heap...");
-    memory::allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap init failed");
-    println!("[OK]");
 
-    print!("testing heap...");
-    let reference_counted = Rc::new(vec![1, 2, 3]);
-    let cloned = reference_counted.clone();
-    let test_1 = Rc::strong_count(&reference_counted) == 2;
-    drop(cloned);
-    let test_2 = Rc::strong_count(&reference_counted) == 1;
-    if test_1 && test_2 {
+    // memory stuff
+    let mut mapper = None;
+    let mut frame_allocator = None;
+    {
+        print!("initialising mapper...");
+        mapper = Some(unsafe { memory::init(VirtAddr::new(0)) });
         println!("[OK]");
-    } else {
-        println!("[FAIL]");
-    }
-    drop(reference_counted);
+        print!("initialising frame allocator...");
+        frame_allocator = Some(unsafe { memory::BootInfoFrameAllocator::init(kern_info) });
+        println!("[OK]");
+        print!("initialising heap...");
+        memory::allocator::init_heap(mapper.as_mut().unwrap(), frame_allocator.as_mut().unwrap()).expect("heap init failed");
+        println!("[OK]");
 
-    loop {}
+        print!("testing heap...");
+        let reference_counted = Rc::new(vec![1, 2, 3]);
+        let cloned = reference_counted.clone();
+        let test_1 = Rc::strong_count(&reference_counted) == 2;
+        drop(cloned);
+        let test_2 = Rc::strong_count(&reference_counted) == 1;
+        if test_1 && test_2 {
+            println!("[OK]");
+        } else {
+            println!("[FAIL]");
+        }
+        drop(reference_counted);
+    }
+
+    // apic stuff
+    {
+        print!("checking for apic compatibility...");
+        let apic_compatible = unsafe { internals::cpu::check_apic_compat() };
+        if apic_compatible {
+            println!("[OK]");
+        } else {
+            println!("[FAIL]");
+            panic!("apic required at the moment");
+        }
+        print!("disabling PIC...");
+        unsafe { internals::cpu::disable_pic() };
+        println!("[OK]");
+        print!("initialising apic...");
+        unsafe { internals::cpu::enable_apic(mapper.as_mut().unwrap(), frame_allocator.as_mut().unwrap()) };
+        println!("[OK]");
+        print!("setting up apic interrupts...");
+        unsafe { internals::cpu::setup_apic_interrupts(mapper.as_mut().unwrap(), frame_allocator.as_mut().unwrap()) };
+        println!("[OK]");
+        // enable interrupts
+        x86_64::instructions::interrupts::enable();
+    }
+
+    loop {
+    }
 }
