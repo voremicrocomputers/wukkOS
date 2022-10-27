@@ -1,12 +1,13 @@
 use alloc::sync::Arc;
 use core::marker::PhantomData;
-use acpi::{AcpiHandler, PhysicalMapping};
-use crate::{debug, KernelArgs};
+use core::ptr::NonNull;
+use acpi::{AcpiHandler, InterruptModel, PhysicalMapping};
+use crate::{debug, KernelArgs, println};
 
 #[cfg(feature = "f_multiboot2")]
 use multiboot2::{load, MemoryMapTag, BootInformation};
-use x86_64::structures::paging::{FrameAllocator, OffsetPageTable};
-use crate::memory::BootInfoFrameAllocator;
+use x86_64::structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Translate};
+use crate::memory::{BootInfoFrameAllocator, FRAME_ALLOC, MEM_MAPPER};
 
 pub struct KernelInfo {
     kernel_start: u64,
@@ -14,6 +15,48 @@ pub struct KernelInfo {
     safe_mem_start: u64,
     #[cfg(feature = "f_multiboot2")]
     boot_info: BootInformation,
+}
+
+#[derive(Clone)]
+struct Handler;
+impl AcpiHandler for Handler {
+    unsafe fn map_physical_region<T>(&self, physical_address: usize, size: usize) -> PhysicalMapping<Self, T> {
+        // todo! check if size is too big
+        debug!("read_phys_memory32: addr {:x} not mapped", physical_address);
+        // map the page
+        let frame = FRAME_ALLOC.lock().as_mut().unwrap().allocate_frame().unwrap();
+        debug!("allocated frame: {:?}", frame);
+        let flags = x86_64::structures::paging::PageTableFlags::PRESENT | x86_64::structures::paging::PageTableFlags::WRITABLE;
+        let page = x86_64::structures::paging::Page::containing_address(initaladdr);
+        debug!("mapped page: {:?}", page);
+        let map_to_result = unsafe { MEM_MAPPER.lock().as_mut().unwrap().map_to(page, frame, flags, FRAME_ALLOC.lock().as_mut().unwrap()) };
+        debug!("map_to_result: {:?}", map_to_result);
+        if map_to_result.is_err() {
+            panic!("Failed to map page");
+        }
+        let addr = unsafe { MEM_MAPPER.lock().as_mut().unwrap().translate_addr(initaladdr) };
+        if let Some(addr) = addr {
+            // physical start, virtual start, region length, mapped length, Self
+            PhysicalMapping::new(
+                physical_address,
+                NonNull::new_unchecked(addr.as_u64() as *mut T),
+                size, size,
+                Self)
+        } else {
+            panic!("Failed to map page");
+        }
+    }
+
+    fn unmap_physical_region<T>(region: &PhysicalMapping<Self, T>) {
+        // get page
+        let page = x86_64::structures::paging::Page::containing_address(region.start_address());
+        // unmap page
+        let res = unsafe { MEM_MAPPER.lock().as_mut().unwrap().unmap(page) };
+        // it isn't *that* important if we don't unmap successfully at the moment, so just write a warning if we fail
+        if res.is_err() {
+            println!("[WARN] failed to unmap page");
+        }
+    }
 }
 
 impl KernelInfo {
@@ -56,64 +99,29 @@ impl KernelInfo {
         self.safe_mem_start
     }
 
-    pub fn acpi_get_ioapic_addr(&self, mem_mapper: &mut OffsetPageTable, frame_allocator: &mut BootInfoFrameAllocator) -> u64 {
+    pub fn acpi_get_ioapic_addr(&self) -> u32 {
         #[cfg(feature = "f_multiboot2")]
         {
             let acpi_tag = self.boot_info.rsdp_v1_tag().expect("no acpi tag");
             let rsdp = acpi_tag;
             let rsdp = unsafe { &*rsdp };
             let rsdt = rsdp.rsdt_address();
-            #[derive(Clone)]
-            struct Handler<'a> {
-                mem_mapper: Arc<&'a mut OffsetPageTable<'a>>,
-                frame_allocator: Arc<&'a mut BootInfoFrameAllocator>,
+            let rsdt = unsafe {
+                acpi::AcpiTables::from_rsdt(
+                    AcpiHandler, 0,
+                    rsdt)
+                    .expect("failed to get acpi tables")
+            };
+            let platform_info = rsdt.platform_info().expect("failed to get platform info");
+            let interrupt_model = platform_info.interrupt_model;
+            if let InterruptModel::Apic(apic) = interrupt_model {
+                let ioapics = apic.io_apics;
+                let ioapic = ioapics.first().expect("no ioapics");
+                let ioapic_addr = ioapic.address;
+                ioapic_addr
+            } else {
+                panic!("no ioapic");
             }
-            impl<'a> AcpiHandler for Handler<'a> {
-                unsafe fn map_physical_region<T>(&self, physical_address: usize, size: usize) -> PhysicalMapping<Self, T> {
-                    let frame_allocator = self.frame_allocator.clone();
-                    debug!("read_phys_memory32: addr {:x} not mapped", physical_address);
-                    // map the page
-                    let frame = frame_allocator.allocate_frame().unwrap();
-                    debug!("allocated frame: {:?}", frame);
-                    let flags = x86_64::structures::paging::PageTableFlags::PRESENT | x86_64::structures::paging::PageTableFlags::WRITABLE;
-                    let page = x86_64::structures::paging::Page::containing_address(initaladdr);
-                    debug!("mapped page: {:?}", page);
-                    let map_to_result = unsafe { mem_mapper.map_to(page, frame, flags, frame_allocator) };
-                    debug!("map_to_result: {:?}", map_to_result);
-                    if map_to_result.is_err() {
-                        panic!("Failed to map page");
-                    }
-                    let addr = unsafe { mem_mapper.translate_addr(initaladdr) };
-                    if let Some(addr) = addr {
-                        let addr = addr.as_u64() as *const u32;
-                        unsafe { *addr }
-                    } else {
-                        panic!("Failed to map page");
-                    }
-                }
-
-                fn unmap_physical_region<T>(region: &PhysicalMapping<Self, T>) {
-                    todo!()
-                }
-            }
-            let rsdt = acpi::AcpiTables::from_rsdt(rsdt).expect("failed to get acpi tables");
-            let mut ioapic_addr = 0;
-            for entry in rsdt.entries() {
-                let entry = unsafe { &*entry };
-                if entry.signature() == *b"APIC" {
-                    let apic = entry.as_apic();
-                    let apic = unsafe { &*apic };
-                    for entry in apic.entries() {
-                        let entry = unsafe { &*entry };
-                        if entry.signature() == *b"IOAP" {
-                            let ioapic = entry.as_ioapic();
-                            let ioapic = unsafe { &*ioapic };
-                            ioapic_addr = ioapic.address();
-                        }
-                    }
-                }
-            }
-            ioapic_addr
         }
     }
 }

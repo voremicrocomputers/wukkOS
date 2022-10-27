@@ -56,12 +56,12 @@ pub fn enable_apic() {
     write_phys_memory32(sivr_addr, sivr | (1 << 8));
 }
 
-pub fn apic_read_io(ioapicaddr: usize, reg: u32) -> u32 {
+pub fn apic_read_io(ioapicaddr: u32, reg: u32) -> u32 {
     write_phys_memory32(ioapicaddr as u32, reg);
     read_phys_memory32(ioapicaddr as u32 + 0x10)
 }
 
-pub fn apic_write_io(ioapicaddr: usize, reg: u32, val: u32) {
+pub fn apic_write_io(ioapicaddr: u32, reg: u32, val: u32) {
     write_phys_memory32(ioapicaddr as u32, reg);
     write_phys_memory32(ioapicaddr as u32 + 0x10, val);
 }
@@ -83,7 +83,7 @@ pub fn disable_pic() {
     command(0xa1, 0xff);
 }
 
-pub fn ioapic_set_irq(ioapicaddr: usize, irq: u8, apic_id: u64, vector:u8) {
+pub fn ioapic_set_irq(ioapicaddr: u32, irq: u8, apic_id: u64, vector:u8) {
     let lo_index: u32 = (0x10 + irq*2    ) as u32;
     let hi_index: u32 = (0x10 + irq*2 + 1) as u32;
 
@@ -136,7 +136,7 @@ pub extern "x86-interrupt" fn keyboard_irq(stack_frame: InterruptStackFrame) {
 }
 
 // todo! we should abstract this away
-pub fn setup_apic_interrupts(ioapicaddr: usize) {
+pub fn setup_apic_interrupts(ioapicaddr: u32) {
     // set keyboard irq to interrupt 40
     ioapic_set_irq(ioapicaddr, 1, 0, 40);
 }

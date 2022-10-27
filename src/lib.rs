@@ -208,7 +208,7 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
         unsafe { internals::cpu::enable_apic() };
         println!("[OK]");
         print!("setting up apic interrupts...");
-        unsafe { internals::cpu::setup_apic_interrupts() };
+        unsafe { internals::cpu::setup_apic_interrupts(kern_info.lock().acpi_get_ioapic_addr()) };
         println!("[OK]");
         // enable interrupts
         x86_64::instructions::interrupts::enable();
