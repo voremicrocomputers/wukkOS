@@ -2,19 +2,24 @@
 #![feature(default_alloc_error_handler)]
 #![feature(panic_info_message)]
 #![feature(asm_const)]
+#![feature(alloc_error_handler)]
 #![no_std]
 #![no_main]
 
 extern crate rlibc;
+extern crate alloc;
 
+use alloc::rc::Rc;
+use alloc::vec;
 use lazy_static::lazy_static;
 use core::panic::PanicInfo;
 use multiboot2::MemoryAreaType;
+use spin::Mutex;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
-use x86_64::VirtAddr;
+use x86_64::{PhysAddr, VirtAddr};
+use x86_64::structures::paging::Translate;
 use crate::boot::KernelInfo;
 use crate::internals::WhyDoTheyCallItOvenWhenYouOfInTheColdFoodOfOutHotEatTheFood::*;
-use crate::memory::active_level_4_table;
 use crate::serial::terminal::ST;
 
 mod font;
@@ -38,6 +43,10 @@ lazy_static! {
 
 const RAINBOW : [Colour; 6] = [Colour{r:255,g:0,b:0}, Colour{r:255,g:127,b:0}, Colour{r:255,g:255,b:0}, Colour{r:0,g:255,b:0}, Colour{r:0,g:255,b:255}, Colour{r:0,g:0,b:255}];
 
+#[alloc_error_handler]
+fn alloc_error_handler(layout: alloc::alloc::Layout) -> ! {
+    panic!("allocation error: {:?}", layout)
+}
 
 #[panic_handler]
 fn panic(info: &PanicInfo) -> ! {
@@ -89,17 +98,29 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
     println!();
     println!("welcome to wukkOS!");
     println!("(c) 2022 Real Microsoft, LLC");
-    print!("initialising memory maps...");
-    let kern_info = KernelInfo::init_from_kernel_args(args);
-    let mut mem_areas = kern_info.memory_areas();
+    let kern_info = Mutex::new(KernelInfo::init_from_kernel_args(args));
+    print!("initialising mapper...");
+    let mut mapper = unsafe { memory::init(VirtAddr::new(0)) };
     println!("[OK]");
-    let l4_table = active_level_4_table(VirtAddr::new(0));
+    print!("initialising frame allocator...");
+    let mut frame_allocator = unsafe { memory::BootInfoFrameAllocator::init(kern_info) };
+    println!("[OK]");
+    print!("initialising heap...");
+    memory::allocator::init_heap(&mut mapper, &mut frame_allocator).expect("heap init failed");
+    println!("[OK]");
 
-    for (i, entry) in l4_table.iter().enumerate() {
-        if !entry.is_unused() {
-            println!("L4 entry {}: {:?}", i, entry);
-        }
+    print!("testing heap...");
+    let reference_counted = Rc::new(vec![1, 2, 3]);
+    let cloned = reference_counted.clone();
+    let test_1 = Rc::strong_count(&reference_counted) == 2;
+    drop(cloned);
+    let test_2 = Rc::strong_count(&reference_counted) == 1;
+    if test_1 && test_2 {
+        println!("[OK]");
+    } else {
+        println!("[FAIL]");
     }
+    drop(reference_counted);
 
     loop {}
 }

@@ -44,7 +44,7 @@ $(final): $(kernel) $(linker_script) $(assembly_object_files)
 		--gc-sections
 
 $(kernel):
-	@RUST_TARGET_PATH=$(shell pwd) xargo build --target $(target) -Zbuild-std=core --features "f_multiboot2"
+	@RUST_TARGET_PATH=$(shell pwd) xargo build --target $(target) -Zbuild-std=core,alloc --features "f_multiboot2"
 
 build/arch/$(arch)/%.o: arch/$(arch)/%.asm
 	@mkdir -p $(shell dirname $@)

@@ -33,6 +33,12 @@ impl KernelInfo {
     }
 
     #[cfg(feature = "f_multiboot2")]
+    pub fn get_memory_tag(&self) -> &MemoryMapTag {
+        let mm_tag = self.boot_info.memory_map_tag().expect("no memory map tag").clone();
+        mm_tag
+    }
+
+    #[cfg(feature = "f_multiboot2")]
     pub fn memory_areas(&self) -> impl Iterator<Item = &multiboot2::MemoryArea> {
         let mm_tag = self.boot_info.memory_map_tag().expect("ERR NO MEM MAP TAG!");
         mm_tag.all_memory_areas()
@@ -40,5 +46,9 @@ impl KernelInfo {
 
     pub fn is_safe_memory(&self, addr: u64) -> bool {
         addr >= self.safe_mem_start && addr >= self.kernel_end
+    }
+
+    pub fn safe_memory_start(&self) -> u64 {
+        self.safe_mem_start
     }
 }
