@@ -4,6 +4,7 @@
 #![feature(asm_const)]
 #![feature(const_mut_refs)]
 #![feature(alloc_error_handler)]
+#![feature(const_slice_from_raw_parts_mut)]
 #![no_std]
 #![no_main]
 
@@ -202,14 +203,13 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
             println!("[FAIL]");
             panic!("apic required at the moment");
         }
-        print!("disabling PIC...");
-        unsafe { internals::cpu::disable_pic() };
-        println!("[OK]");
         print!("initialising apic...");
         unsafe { internals::cpu::enable_apic() };
         println!("[OK]");
         print!("setting up apic interrupts...");
-        unsafe { internals::cpu::setup_apic_interrupts(KERN_INFO.lock().as_ref().unwrap().acpi_get_ioapic_addr()) };
+        let ioapicaddr = KERN_INFO.lock().as_ref().unwrap().acpi_get_ioapic_addr();
+        debug!("ioapicaddr: {:#x}", ioapicaddr);
+        unsafe { internals::cpu::setup_ioapic(ioapicaddr) };
         println!("[OK]");
         // enable interrupts
         x86_64::instructions::interrupts::enable();

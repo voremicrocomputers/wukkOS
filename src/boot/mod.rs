@@ -8,7 +8,7 @@ use crate::{debug, KernelArgs, println};
 use multiboot2::{load, MemoryMapTag, BootInformation};
 use x86_64::structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, Translate};
 use x86_64::VirtAddr;
-use crate::memory::{BootInfoFrameAllocator, FRAME_ALLOC, MEM_MAPPER, PageSize};
+use crate::memory::{BootInfoFrameAllocator, FRAME_ALLOC, MEM_MAPPER, PageSize, read_phys_memory32};
 
 pub struct KernelInfo {
     kernel_start: u64,
@@ -24,19 +24,13 @@ impl AcpiHandler for Handler {
     unsafe fn map_physical_region<T>(&self, physical_address: usize, size: usize) -> PhysicalMapping<Self, T> {
         // todo! check if size is too big
         debug!("read_phys_memory32: addr {:x} not mapped", physical_address);
-        // map the page
-        let frame = FRAME_ALLOC.lock().as_mut().unwrap().allocate_frame().unwrap();
-        debug!("allocated frame: {:?}", frame);
-        let flags = x86_64::structures::paging::PageTableFlags::PRESENT | x86_64::structures::paging::PageTableFlags::WRITABLE;
-        let page: Page<PageSize> = Page::containing_address(VirtAddr::new(physical_address as u64));
-        debug!("mapped page: {:?}", page);
-        let map_to_result = unsafe { MEM_MAPPER.lock().as_mut().unwrap().map_to(page, frame, flags, FRAME_ALLOC.lock().as_mut().unwrap()) };
-        debug!("map_to_result: {:?}", map_to_result);
-        if map_to_result.is_err() {
-            panic!("Failed to map page");
+        let mut i = 0;
+        while i < size {
+            let _ = read_phys_memory32(physical_address as u32 + i as u32);
+            i += 4;
         }
         let addr = unsafe { MEM_MAPPER.lock().as_mut().unwrap().translate_addr(VirtAddr::new(physical_address as u64)) };
-        if let Some(addr) = addr {
+        if let Some(addr) = addr.clone() {
             // physical start, virtual start, region length, mapped length, Self
             PhysicalMapping::new(
                 physical_address,
@@ -104,21 +98,25 @@ impl KernelInfo {
         #[cfg(feature = "f_multiboot2")]
         {
             let acpi_tag = self.boot_info.rsdp_v1_tag().expect("no acpi tag");
+            debug!("acpi tag: {:?}", acpi_tag);
             let rsdp = acpi_tag;
             let rsdp = unsafe { &*rsdp };
             let rsdt = rsdp.rsdt_address();
+            debug!("rsdt: {:?}", rsdt);
             let rsdt = unsafe {
                 acpi::AcpiTables::from_rsdt(
                     Handler, 0,
                     rsdt)
                     .expect("failed to get acpi tables")
             };
+            debug!("loaded rsdt");
             let platform_info = rsdt.platform_info().expect("failed to get platform info");
             let interrupt_model = platform_info.interrupt_model;
             if let InterruptModel::Apic(apic) = interrupt_model {
                 let ioapics = apic.io_apics;
                 let ioapic = ioapics.first().expect("no ioapics");
                 let ioapic_addr = ioapic.address;
+                debug!("ioapic addr: {:x}", ioapic_addr);
                 ioapic_addr
             } else {
                 panic!("no ioapic");
