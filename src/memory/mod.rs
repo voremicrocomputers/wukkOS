@@ -7,9 +7,11 @@ use x86_64::structures::paging::{FrameAllocator, Mapper, OffsetPageTable, PageTa
 use x86_64::{PhysAddr, VirtAddr};
 
 lazy_static!{
-    pub static ref MEM_MAPPER: Mutex<Option<OffsetPageTable>> = Mutex::new(None);
+    pub static ref MEM_MAPPER: Mutex<Option<OffsetPageTable<'static>>> = Mutex::new(None);
     pub static ref FRAME_ALLOC: Mutex<Option<BootInfoFrameAllocator>> = Mutex::new(None);
 }
+
+pub type PageSize = Size4KiB;
 
 pub struct Locked<A> {
     inner: spin::Mutex<A>,
@@ -48,18 +50,16 @@ unsafe fn active_level_4_table(phys_mem_offset: VirtAddr) -> &'static mut PageTa
 use multiboot2::{MemoryMapTag, BootInformation};
 use spin::Mutex;
 use crate::boot::KernelInfo;
-use crate::{debug, print, println};
+use crate::{debug, KERN_INFO, print, println};
 
 pub struct BootInfoFrameAllocator {
-    kern_info: Mutex<KernelInfo>,
     next: usize,
 }
 
 impl BootInfoFrameAllocator {
     #[cfg(feature = "f_multiboot2")]
-    pub unsafe fn init(kern_info: Mutex<crate::boot::KernelInfo>) -> Self {
+    pub unsafe fn init() -> Self {
         Self {
-            kern_info,
             next: 0,
         }
     }
@@ -68,8 +68,9 @@ impl BootInfoFrameAllocator {
 unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
         #[cfg(feature = "f_multiboot2")] {
-            let mut kern_lock = self.kern_info.lock();
-            let mut usable_frames = kern_lock
+            let mut kern_lock = KERN_INFO.lock();
+            let mut kern_info = kern_lock.as_mut().unwrap();
+            let mut usable_frames = kern_info
                 .memory_areas();
             let mut usable_frames = usable_frames
                     .map(|area| {
@@ -85,7 +86,7 @@ unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
             self.next += 1;
 
             // ensure unlock
-            unsafe { self.kern_info.force_unlock() };
+            unsafe { KERN_INFO.force_unlock() };
 
             frame
         }

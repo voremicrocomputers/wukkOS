@@ -6,8 +6,9 @@ use crate::{debug, KernelArgs, println};
 
 #[cfg(feature = "f_multiboot2")]
 use multiboot2::{load, MemoryMapTag, BootInformation};
-use x86_64::structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Translate};
-use crate::memory::{BootInfoFrameAllocator, FRAME_ALLOC, MEM_MAPPER};
+use x86_64::structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, Translate};
+use x86_64::VirtAddr;
+use crate::memory::{BootInfoFrameAllocator, FRAME_ALLOC, MEM_MAPPER, PageSize};
 
 pub struct KernelInfo {
     kernel_start: u64,
@@ -27,14 +28,14 @@ impl AcpiHandler for Handler {
         let frame = FRAME_ALLOC.lock().as_mut().unwrap().allocate_frame().unwrap();
         debug!("allocated frame: {:?}", frame);
         let flags = x86_64::structures::paging::PageTableFlags::PRESENT | x86_64::structures::paging::PageTableFlags::WRITABLE;
-        let page = x86_64::structures::paging::Page::containing_address(initaladdr);
+        let page: Page<PageSize> = Page::containing_address(VirtAddr::new(physical_address as u64));
         debug!("mapped page: {:?}", page);
         let map_to_result = unsafe { MEM_MAPPER.lock().as_mut().unwrap().map_to(page, frame, flags, FRAME_ALLOC.lock().as_mut().unwrap()) };
         debug!("map_to_result: {:?}", map_to_result);
         if map_to_result.is_err() {
             panic!("Failed to map page");
         }
-        let addr = unsafe { MEM_MAPPER.lock().as_mut().unwrap().translate_addr(initaladdr) };
+        let addr = unsafe { MEM_MAPPER.lock().as_mut().unwrap().translate_addr(VirtAddr::new(physical_address as u64)) };
         if let Some(addr) = addr {
             // physical start, virtual start, region length, mapped length, Self
             PhysicalMapping::new(
@@ -49,7 +50,7 @@ impl AcpiHandler for Handler {
 
     fn unmap_physical_region<T>(region: &PhysicalMapping<Self, T>) {
         // get page
-        let page = x86_64::structures::paging::Page::containing_address(region.start_address());
+        let page: Page<PageSize> = Page::containing_address(VirtAddr::new(region.physical_start() as u64));
         // unmap page
         let res = unsafe { MEM_MAPPER.lock().as_mut().unwrap().unmap(page) };
         // it isn't *that* important if we don't unmap successfully at the moment, so just write a warning if we fail
@@ -108,7 +109,7 @@ impl KernelInfo {
             let rsdt = rsdp.rsdt_address();
             let rsdt = unsafe {
                 acpi::AcpiTables::from_rsdt(
-                    AcpiHandler, 0,
+                    Handler, 0,
                     rsdt)
                     .expect("failed to get acpi tables")
             };

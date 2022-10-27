@@ -37,6 +37,7 @@ mod memory;
 mod macros;
 
 lazy_static! {
+    pub static ref KERN_INFO: Mutex<Option<KernelInfo>> = Mutex::new(None);
     static ref GDT: Mutex<GlobalDescriptorTable> = {
         let mut gdt = GlobalDescriptorTable::new();
         Mutex::new(gdt)
@@ -163,7 +164,7 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
     println!();
     println!("welcome to wukkOS!");
     println!("(c) 2022 Real Microsoft, LLC");
-    let kern_info = Mutex::new(KernelInfo::init_from_kernel_args(args));
+    KERN_INFO.lock().replace(KernelInfo::init_from_kernel_args(args));
 
     // memory stuff
     {
@@ -171,7 +172,7 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
         MEM_MAPPER.lock().replace(unsafe { memory::init(VirtAddr::new(0)) });
         println!("[OK]");
         print!("initialising frame allocator...");
-        FRAME_ALLOC.lock().replace(unsafe { memory::BootInfoFrameAllocator::init(kern_info) });
+        FRAME_ALLOC.lock().replace(unsafe { memory::BootInfoFrameAllocator::init() });
         println!("[OK]");
         print!("initialising heap...");
         memory::allocator::init_heap(MEM_MAPPER.lock().as_mut().unwrap(), FRAME_ALLOC.lock().as_mut().unwrap()).expect("heap init failed");
@@ -208,7 +209,7 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
         unsafe { internals::cpu::enable_apic() };
         println!("[OK]");
         print!("setting up apic interrupts...");
-        unsafe { internals::cpu::setup_apic_interrupts(kern_info.lock().acpi_get_ioapic_addr()) };
+        unsafe { internals::cpu::setup_apic_interrupts(KERN_INFO.lock().as_ref().unwrap().acpi_get_ioapic_addr()) };
         println!("[OK]");
         // enable interrupts
         x86_64::instructions::interrupts::enable();

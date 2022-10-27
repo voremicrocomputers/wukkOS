@@ -4,6 +4,10 @@ iso := build/arch/$(arch)/wukkOS.iso
 target ?= $(arch)-custom
 final := build/arch/$(arch)/wukkOS.bin
 efi_bios := build/arch/$(arch)/OVMF-pure-efi.fd
+gcc := x86_64-elf-gcc
+ld := x86_64-elf-ld
+# set grub-mkrescue to either $GRUB_MKRESCUE or /usr/bin/grub-mkrescue
+grub-mkrescue ?= $(shell which grub-mkrescue)
 
 linker_script := arch/$(arch)/linker.ld
 grub_cfg := arch/$(arch)/grub.cfg
@@ -11,9 +15,11 @@ assembly_source_files := $(wildcard arch/$(arch)/*.asm)
 assembly_object_files := $(patsubst arch/$(arch)/%.asm, \
 							build/arch/$(arch)/%.o, $(assembly_source_files))
 
-.PHONY: all clean run iso quick_invalidate
+.PHONY: all clean run iso quick_invalidate build_no_iso
 
 all: $(final) $(iso)
+
+build_no_iso: $(final)
 
 clean:
 	@xargo clean
@@ -36,12 +42,12 @@ $(iso): $(final) $(grub_cfg)
 	@mkdir -p isodir/boot/grub
 	@cp $(final) isodir/boot/wukkOS.bin
 	@cp $(grub_cfg) isodir/boot/grub/grub.cfg
-	@grub-mkrescue -o $(iso) isodir
+	@$(grub-mkrescue) -o $(iso) isodir
 	@rm -rf isodir
 
 $(final): $(kernel) $(linker_script) $(assembly_object_files)
-	@ld -n -T $(linker_script) -o $(final) $(assembly_object_files) $(kernel) \
-		--gc-sections
+	@$(ld) -n -T $(linker_script) -o $(final) $(assembly_object_files) $(kernel) \
+		--gc-sections -z noexecstack
 
 $(kernel):
 	@RUST_TARGET_PATH=$(shell pwd) xargo build --target $(target) -Zbuild-std=core,alloc --features "f_multiboot2"
