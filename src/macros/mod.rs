@@ -1,4 +1,6 @@
 use core::fmt;
+use limine::LimineTerminalResponse;
+use crate::boot::LimineWriter;
 use crate::serial::terminal::ST;
 
 #[macro_export]
@@ -21,6 +23,9 @@ macro_rules! debug {
 pub fn _print(args: fmt::Arguments) {
     use core::fmt::Write;
     ST.writer.lock().write_fmt(args).unwrap();
+
+    let mut limine_writer = LimineWriter;
+    limine_writer.write_fmt(args).unwrap();
 }
 
 #[doc(hidden)]
@@ -31,5 +36,10 @@ pub fn _debug(args: fmt::Arguments) {
         ST.log("[debug] ");
         ST.writer.lock().write_fmt(args).unwrap();
         ST.logln("");
+
+        let mut limine_writer = LimineWriter;
+        limine_writer.write_str("[debug] ").unwrap();
+        limine_writer.write_fmt(args).unwrap();
+        limine_writer.write_str("\n").unwrap();
     }
 }

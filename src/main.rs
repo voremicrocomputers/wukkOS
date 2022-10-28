@@ -16,7 +16,7 @@ use alloc::vec;
 use core::arch::asm;
 use lazy_static::lazy_static;
 use core::panic::PanicInfo;
-use multiboot2::MemoryAreaType;
+use limine::{LimineBootInfoRequest, LimineMemmapRequest, LimineTerminalRequest};
 use spin::Mutex;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 use x86_64::structures::gdt::{GlobalDescriptorTable, Descriptor};
@@ -24,7 +24,6 @@ use x86_64::structures::tss::TaskStateSegment;
 use x86_64::{PhysAddr, VirtAddr};
 use x86_64::registers::segmentation::{CS, Segment, SS};
 use x86_64::structures::paging::Translate;
-use crate::boot::KernelInfo;
 use crate::internals::WhyDoTheyCallItOvenWhenYouOfInTheColdFoodOfOutHotEatTheFood::*;
 use crate::memory::{FRAME_ALLOC, MEM_MAPPER};
 use crate::serial::terminal::ST;
@@ -37,8 +36,12 @@ mod boot;
 mod memory;
 mod macros;
 
+static BOOTLOADER_INFO: LimineBootInfoRequest = LimineBootInfoRequest::new(0);
+static TERMINAL_REQUEST: LimineTerminalRequest = LimineTerminalRequest::new(0);
+static MEM_MAP: LimineMemmapRequest = LimineMemmapRequest::new(0);
+
 lazy_static! {
-    pub static ref KERN_INFO: Mutex<Option<KernelInfo>> = Mutex::new(None);
+    //pub static ref KERN_INFO: Mutex<Option<KernelInfo>> = Mutex::new(None);
     static ref GDT: Mutex<GlobalDescriptorTable> = {
         let mut gdt = GlobalDescriptorTable::new();
         Mutex::new(gdt)
@@ -82,14 +85,10 @@ fn panic(info: &PanicInfo) -> ! {
     loop {}
 }
 
-#[repr(C)]
-pub struct KernelArgs {
-    #[cfg(feature = "f_multiboot2")]
-    multiboot_information_address: usize
-}
-
 #[no_mangle]
-pub extern fn kernel_main(args: KernelArgs) -> ! {
+pub extern "C" fn kernel_main() -> ! {
+    debug!("entry point");
+
     // initialise serial
     let mut serial_ports = serial::init_serial();
     let mut console_port = None;
@@ -165,7 +164,6 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
     println!();
     println!("welcome to wukkOS!");
     println!("(c) 2022 Real Microsoft, LLC");
-    KERN_INFO.lock().replace(KernelInfo::init_from_kernel_args(args));
 
     // memory stuff
     {
@@ -194,7 +192,7 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
     }
 
     // apic stuff
-    {
+    /*{
         print!("checking for apic compatibility...");
         let apic_compatible = unsafe { internals::cpu::check_apic_compat() };
         if apic_compatible {
@@ -213,7 +211,7 @@ pub extern fn kernel_main(args: KernelArgs) -> ! {
         println!("[OK]");
         // enable interrupts
         x86_64::instructions::interrupts::enable();
-    }
+    }*/
 
     loop {
     }

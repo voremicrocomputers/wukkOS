@@ -1,10 +1,6 @@
-[2J[01;01H[=3h[2J[01;01HBdsDxe: loading Boot0001 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
+[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01H[2J[01;01H[=3h[2J[01;01HBdsDxe: loading Boot0001 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
 BdsDxe: starting Boot0001 "UEFI QEMU DVD-ROM QM00003 " from PciRoot(0x0)/Pci(0x1,0x1)/Ata(Secondary,Master,0x0)
-  Booting `wukkOS basic kernel'
-
-WARNING: no console will be available to OS
-error: no suitable video mode found.
-using serial port 0 as console
+[2J[01;01H[01;01Husing serial port 0 as console
 debug: setup GDT
 debug: GDT loaded
 debug: CS set
@@ -20,44 +16,3 @@ initialising mapper...[OK]
 initialising frame allocator...[OK]
 initialising heap...[OK]
 testing heap...[OK]
-checking for apic compatibility...[OK]
-initialising apic...[debug] read_phys_memory32: addr fffe0000 not mapped
-[debug] allocated frame: PhysFrame[4KiB](0x1c000)
-[debug] mapped page: Page[4KiB](0xfffe0000)
-[debug] map_to_result: Ok(MapperFlush(Page[4KiB](0xfffe0000)))
-[debug] xapic id: 0
-[debug] xapic version: 0
-[OK]
-setting up apic interrupts...[debug] acpi tag: RsdpV1Tag { typ: AcpiV1, size: 28, signature: [82, 83, 68, 32, 80, 84, 82, 32], checksum: 172, oem_id: [66, 79, 67, 72, 83, 32], revision: 0, rsdt_address: 532140032 }
-[debug] rsdt: 532140032
-[debug] read_phys_memory32: addr 1fb7d000 not mapped
-[WARN] failed to unmap page
-[debug] read_phys_memory32: addr 1fb7d000 not mapped
-[debug] read_phys_memory32: addr 1fb7a000 not mapped
-[WARN] failed to unmap page
-[debug] read_phys_memory32: addr 1fb7a000 not mapped
-[debug] read_phys_memory32: addr 1fb7b000 not mapped
-[WARN] failed to unmap page
-[WARN] failed to unmap page
-[debug] read_phys_memory32: addr 1fb79000 not mapped
-[WARN] failed to unmap page
-[debug] read_phys_memory32: addr 1fb78000 not mapped
-[WARN] failed to unmap page
-[debug] read_phys_memory32: addr 1fb77000 not mapped
-[WARN] failed to unmap page
-[debug] read_phys_memory32: addr 1fb76000 not mapped
-[WARN] failed to unmap page
-[WARN] failed to unmap page
-[debug] loaded rsdt
-[debug] read_phys_memory32: addr 1fb7a000 not mapped
-[debug] read_phys_memory32: addr 1fb79000 not mapped
-[WARN] failed to unmap page
-[WARN] failed to unmap page
-[debug] ioapic addr: fec00000
-[debug] ioapicaddr: 0xfec00000
-[debug] read_phys_memory32: addr fec00000 not mapped
-[debug] allocated frame: PhysFrame[4KiB](0x1f000)
-[debug] mapped page: Page[4KiB](0xfec00000)
-[debug] map_to_result: Ok(MapperFlush(Page[4KiB](0xfec00000)))
-[debug] ioapic supported interrupts: 1
-[OK]

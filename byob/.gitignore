@@ -1,0 +1,5 @@
+# limine binaries
+limine.sys
+limine-cd.bin
+limine-cd-efi.bin
+limine-deploy

@@ -46,18 +46,14 @@ unsafe fn active_level_4_table(phys_mem_offset: VirtAddr) -> &'static mut PageTa
     unsafe { &mut  *page_table_ptr } // unsafe
 }
 
-#[cfg(feature = "f_multiboot2")]
-use multiboot2::{MemoryMapTag, BootInformation};
 use spin::Mutex;
-use crate::boot::KernelInfo;
-use crate::{debug, KERN_INFO, print, println};
+use crate::{debug, MEM_MAP, print, println};
 
 pub struct BootInfoFrameAllocator {
     next: usize,
 }
 
 impl BootInfoFrameAllocator {
-    #[cfg(feature = "f_multiboot2")]
     pub unsafe fn init() -> Self {
         Self {
             next: 0,
@@ -67,15 +63,13 @@ impl BootInfoFrameAllocator {
 
 unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
     fn allocate_frame(&mut self) -> Option<PhysFrame> {
-        #[cfg(feature = "f_multiboot2")] {
-            let mut kern_lock = KERN_INFO.lock();
-            let mut kern_info = kern_lock.as_mut().unwrap();
-            let mut usable_frames = kern_info
-                .memory_areas();
-            let mut usable_frames = usable_frames
+        #[cfg(feature = "f_limine")] {
+            let mmap = MEM_MAP.get_response().get().expect("failed to get memory map")
+                .memmap();
+            let mut usable_frames = mmap.iter()
                     .map(|area| {
-                        let frame_addr = area.start_address();
-                        let frame_end = area.end_address();
+                        let frame_addr = area.base;
+                        let frame_end = area.base + area.len;
                         let frame_size = frame_end - frame_addr;
                         let num_frames = frame_size / 4096;
                         let start_frame = PhysFrame::containing_address(PhysAddr::new(frame_addr));
@@ -84,9 +78,6 @@ unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
                     .flatten();
             let frame = usable_frames.nth(self.next).clone();
             self.next += 1;
-
-            // ensure unlock
-            unsafe { KERN_INFO.force_unlock() };
 
             frame
         }

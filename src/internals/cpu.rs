@@ -3,7 +3,7 @@ use x86::apic::{xapic::XAPIC, ioapic::IoApic, ApicControl};
 use x86_64::PhysAddr;
 use x86_64::structures::idt::InterruptStackFrame;
 use x86_64::structures::paging::PhysFrame;
-use crate::{debug, KERN_INFO, print, println};
+use crate::{debug, print, println};
 use crate::memory::{BootInfoFrameAllocator, read_phys_memory32, write_phys_memory32};
 use crate::serial::{command, read};
 
