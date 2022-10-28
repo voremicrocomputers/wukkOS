@@ -1,8 +1,10 @@
 use alloc::sync::Arc;
+use alloc::vec::Vec;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 use acpi::{AcpiHandler, AcpiTables, InterruptModel, PhysicalMapping};
-use limine::{LimineBootInfoRequest, LimineKernelAddressRequest, LimineMemmapRequest, LimineTerminalRequest, LimineTerminalResponse, LimineRsdpRequest};
+use acpi::platform::interrupt::InterruptSourceOverride;
+use limine::{LimineBootInfoRequest, LimineKernelAddressRequest, LimineMemmapRequest, LimineTerminalRequest, LimineTerminalResponse, LimineRsdpRequest, LimineSmpRequest};
 use crate::{debug, println};
 
 #[cfg(feature = "f_multiboot2")]
@@ -17,6 +19,7 @@ pub static TERMINAL_REQUEST: LimineTerminalRequest = LimineTerminalRequest::new(
 pub static MEM_MAP: LimineMemmapRequest = LimineMemmapRequest::new(0);
 pub static RSDP_REQUEST: LimineRsdpRequest = LimineRsdpRequest::new(0);
 pub static KERNEL_ADDRESS: LimineKernelAddressRequest = LimineKernelAddressRequest::new(0);
+pub static SMP_REQUEST: LimineSmpRequest = LimineSmpRequest::new(0);
 
 #[derive(Clone)]
 struct Handler;
@@ -24,7 +27,7 @@ impl AcpiHandler for Handler {
     unsafe fn map_physical_region<T>(&self, physical_address: usize, size: usize) -> PhysicalMapping<Self, T> { // todo! check if size is too big
         // only get lower 32 bits of physical address
         let physical_address = physical_address as u32;
-        debug!("Mapping physical region: {:x} - {:x}", physical_address, physical_address + size as u32);
+        debug!("mapping physical region: {:x} - {:x}", physical_address, physical_address + size as u32);
         let _ = read_phys_memory32(physical_address as u32) as usize;
         PhysicalMapping::new(
             physical_address as usize,
@@ -40,8 +43,8 @@ impl AcpiHandler for Handler {
         let res = unsafe { MEM_MAPPER.lock().as_mut().unwrap().unmap(page) };
         // it isn't *that* important if we don't unmap successfully at the moment, so just write a warning if we fail
 
-        if res.is_err() {
-            println!("[WARN] failed to unmap page (this is normal)");
+        if let Err(e) = res {
+            debug!("(THIS IS NORMAL) failed to unmap physical region: {:?}", e);
         }
     }
 }
@@ -68,15 +71,18 @@ impl core::fmt::Write for LimineWriter {
     }
 }
 
-pub fn get_ioapic_addr() -> u32 {
+pub fn get_ioapic_info() -> (u32, Vec<InterruptSourceOverride>) {
     let rsdp = RSDP_REQUEST.get_response().get().unwrap();
     let rsdp_ptr = rsdp.address.get().unwrap() as *const u8;
     let tables = unsafe { AcpiTables::from_rsdp(Handler, rsdp_ptr as usize).unwrap() };
     let platform_info = tables.platform_info().expect("no platform info");
     let interrupt_model = platform_info.interrupt_model;
-    let ioapic_addr = match interrupt_model {
-        InterruptModel::Apic(apic) => apic.io_apics[0].address,
+    let apic = match interrupt_model {
+        InterruptModel::Apic(apic) => apic,
         _ => panic!("unsupported interrupt model"),
     };
-    ioapic_addr
+    let ioapic = apic.io_apics.first().expect("no ioapic");
+    let address = ioapic.address;
+    let overrides = apic.interrupt_source_overrides;
+    (address, overrides)
 }

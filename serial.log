@@ -12,50 +12,14 @@ debug: IDT loaded
 
 welcome to wukkOS!
 (c) 2022 Real Microsoft, LLC
-initialising mapper...[debug] kernel physical address: 0x19b3d000
-[debug] kernel virtual address: 0xffffffff80000000
-[OK]
+initialising mapper...[OK]
 initialising frame allocator...[OK]
 initialising heap...[OK]
 testing heap...[OK]
 checking for apic compatibility...[OK]
-initialising apic...[debug] Mapping physical region: 1fb7e014 - 1fb7e038
-[debug] Mapping physical region: 1fb7d0e8 - 1fb7d10c
-[WARN] failed to unmap page (this is normal)
-[debug] Mapping physical region: 1fb7d0e8 - 1fb7d134
-[debug] Mapping physical region: 1fb7a000 - 1fb7a024
-[WARN] failed to unmap page (this is normal)
-[debug] Mapping physical region: 1fb7a000 - 1fb7a114
-[debug] Mapping physical region: 1fb7b000 - 1fb7b024
-[WARN] failed to unmap page (this is normal)
-[WARN] failed to unmap page (this is normal)
-[debug] Mapping physical region: 1fb79000 - 1fb79024
-[WARN] failed to unmap page (this is normal)
-[debug] Mapping physical region: 1fb78000 - 1fb78024
-[WARN] failed to unmap page (this is normal)
-[debug] Mapping physical region: 1fb77000 - 1fb77024
-[WARN] failed to unmap page (this is normal)
-[debug] Mapping physical region: 1fb76000 - 1fb76024
-[WARN] failed to unmap page (this is normal)
-[WARN] failed to unmap page (this is normal)
-[WARN] failed to unmap page (this is normal)
-[debug] Mapping physical region: 1fb7a000 - 1fb7a074
-[debug] Mapping physical region: 1fb79000 - 1fb79078
-[WARN] failed to unmap page (this is normal)
-[WARN] failed to unmap page (this is normal)
-[OK]
-setting up apic interrupts...[debug] ioapicaddr: 0xfec00000
-[OK]
----KERNEL FUCKY WUKKY UWU---
-double fault!
-stack frame: InterruptStackFrame {
-    instruction_pointer: VirtAddr(
-        0xffffffff80004729,
-    ),
-    code_segment: 8,
-    cpu_flags: 0x282,
-    stack_pointer: VirtAddr(
-        0xffff800019b3bd00,
-    ),
-    stack_segment: 16,
-}
+initialising apic...[OK]
+setting up apic interrupts...[OK]
+
+hello world i am typing this using the legacy keyboard driver thingy in the apic from ioapic irq 1!
+wukkOS moment, probably gonna swap this out for a real keyboard driver eventually but this is funny so (:
+top ten wukkooOS moments

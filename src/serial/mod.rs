@@ -6,6 +6,7 @@ use core::ops::Deref;
 
 pub mod terminal_helpers;
 pub mod terminal;
+pub mod simplifiers;
 
 #[derive(Clone, Copy, PartialEq)]
 pub enum potential_serial_ports {

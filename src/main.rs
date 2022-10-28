@@ -21,10 +21,10 @@ use spin::Mutex;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
 use x86_64::structures::gdt::{GlobalDescriptorTable, Descriptor};
 use x86_64::structures::tss::TaskStateSegment;
-use x86_64::{PhysAddr, VirtAddr};
+use x86_64::{PhysAddr, set_general_handler, VirtAddr};
 use x86_64::registers::segmentation::{CS, Segment, SS};
 use x86_64::structures::paging::Translate;
-use crate::boot::{get_ioapic_addr, KERNEL_ADDRESS};
+use crate::boot::{get_ioapic_info, KERNEL_ADDRESS};
 use crate::internals::WhyDoTheyCallItOvenWhenYouOfInTheColdFoodOfOutHotEatTheFood::*;
 use crate::memory::{FRAME_ALLOC, MEM_MAPPER};
 use crate::serial::terminal::ST;
@@ -45,14 +45,17 @@ lazy_static! {
     };
     static ref IDT: InterruptDescriptorTable = {
         let mut idt = InterruptDescriptorTable::new();
-        idt.breakpoint.set_handler_fn(internals::errors::breakpoint_exception);
-        idt.double_fault.set_handler_fn(internals::errors::double_fault);
-        idt.page_fault.set_handler_fn(internals::errors::page_fault);
-        idt[40].set_handler_fn(internals::cpu::timer);
-        idt[41].set_handler_fn(internals::cpu::error);
-        idt[42].set_handler_fn(internals::cpu::spurious);
-        idt[50].set_handler_fn(internals::cpu::timer);
-        idt[51].set_handler_fn(internals::cpu::keyboard_irq);
+        unsafe {
+            use internals::errors::unhandled;
+            set_general_handler!(&mut idt, unhandled);
+            idt.breakpoint.set_handler_fn(internals::errors::breakpoint_exception).set_stack_index(0);
+            idt.double_fault.set_handler_fn(internals::errors::double_fault).set_stack_index(0);
+            idt.page_fault.set_handler_fn(internals::errors::page_fault).set_stack_index(0);
+            idt[internals::cpu::TIMER_IRQ].set_handler_fn(internals::cpu::timer).set_stack_index(1);
+            idt[internals::cpu::ERROR_IRQ].set_handler_fn(internals::cpu::error).set_stack_index(1);
+            idt[internals::cpu::SPURIOUS_IRQ].set_handler_fn(internals::cpu::spurious).set_stack_index(1);
+            idt[internals::cpu::FALLBACK_KEYBOARD_IRQ].set_handler_fn(internals::cpu::keyboard_irq).set_stack_index(1);
+        }
         idt
     };
 }
@@ -74,7 +77,7 @@ fn panic(info: &PanicInfo) -> ! {
         println!("no panic payload")
     };
    if let Some(msg) = info.message() {
-        println!("panic msg: {}", msg.as_str().unwrap_or("no message"))
+        println!("panic msg: {}", msg)
     } else {
         println!("no message");
     }
@@ -112,13 +115,80 @@ pub extern "C" fn kernel_main() -> ! {
     static mut tss: TaskStateSegment = TaskStateSegment::new();
     {
         unsafe {
-            tss.interrupt_stack_table[0] = {
-                const STACK_SIZE: usize = 4096 * 5;
-                static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-                let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
-                let stack_end = stack_start + STACK_SIZE;
-                stack_end
-            };
+            {
+                tss.interrupt_stack_table[0] = {
+                    const STACK_SIZE: usize = 4096 * 5;
+                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
+                    let stack_end = stack_start + STACK_SIZE;
+                    stack_end
+                };
+                tss.interrupt_stack_table[1] = {
+                    const STACK_SIZE: usize = 4096 * 5;
+                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
+                    let stack_end = stack_start + STACK_SIZE;
+                    stack_end
+                };
+                tss.interrupt_stack_table[2] = {
+                    const STACK_SIZE: usize = 4096 * 5;
+                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
+                    let stack_end = stack_start + STACK_SIZE;
+                    stack_end
+                };
+                tss.interrupt_stack_table[3] = {
+                    const STACK_SIZE: usize = 4096 * 5;
+                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
+                    let stack_end = stack_start + STACK_SIZE;
+                    stack_end
+                };
+                tss.interrupt_stack_table[4] = {
+                    const STACK_SIZE: usize = 4096 * 5;
+                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
+                    let stack_end = stack_start + STACK_SIZE;
+                    stack_end
+                };
+                tss.interrupt_stack_table[5] = {
+                    const STACK_SIZE: usize = 4096 * 5;
+                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
+                    let stack_end = stack_start + STACK_SIZE;
+                    stack_end
+                };
+                tss.interrupt_stack_table[6] = {
+                    const STACK_SIZE: usize = 4096 * 5;
+                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
+                    let stack_end = stack_start + STACK_SIZE;
+                    stack_end
+                };
+            }
+            {
+                tss.privilege_stack_table[0] = {
+                    const STACK_SIZE: usize = 4096 * 5;
+                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
+                    let stack_end = stack_start + STACK_SIZE;
+                    stack_end
+                };
+                tss.privilege_stack_table[1] = {
+                    const STACK_SIZE: usize = 4096 * 5;
+                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
+                    let stack_end = stack_start + STACK_SIZE;
+                    stack_end
+                };
+                tss.privilege_stack_table[2] = {
+                    const STACK_SIZE: usize = 4096 * 5;
+                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
+                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
+                    let stack_end = stack_start + STACK_SIZE;
+                    stack_end
+                };
+            }
             // set word at offset 102 to 0x68 and last two bytes of the tss to 0xffff
             // this is a hack to make the tss valid
             let tss_ptr = &tss as *const TaskStateSegment as *mut u8;
@@ -208,17 +278,19 @@ pub extern "C" fn kernel_main() -> ! {
             panic!("apic required at the moment");
         }
         print!("initialising apic...");
-        let ioapicaddr = get_ioapic_addr();
+        //internals::cpu::tell_pic8259a_to_f_off();
+        let (addr, isos) = get_ioapic_info();
         unsafe { internals::cpu::enable_apic() };
         println!("[OK]");
         print!("setting up apic interrupts...");
-        debug!("ioapicaddr: {:#x}", ioapicaddr);
-        unsafe { internals::cpu::setup_ioapic(ioapicaddr) };
+        debug!("ioapicaddr: {:#x}", addr);
+        unsafe { internals::cpu::setup_ioapic(addr, isos) };
         println!("[OK]");
         // enable interrupts
         //x86_64::instructions::interrupts::enable();
     }
 
     loop {
+        x86_64::instructions::hlt();
     }
 }

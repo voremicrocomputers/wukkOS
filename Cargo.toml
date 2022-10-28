@@ -11,12 +11,13 @@ rlibc = "1.0"
 limine = { version = "0.1.9", optional = true }
 acpi = { version = "4.1.1", optional = true }
 linked_list_allocator = { version = "0.9.0", optional = true }
+pc-keyboard = "0.6.1"
 [dependencies.lazy_static]
 version = "1.4.0"
 features = ["spin_no_std"]
 
 [features]
-default = ["f_limine", "f_ll_alloc", "f_debug_verbose"]
+default = ["f_limine", "f_ll_alloc"]#, "f_debug_verbose"]
 f_debug_verbose = []
 f_limine = ["dep:limine", "dep:acpi"]
 f_ll_alloc = ["dep:linked_list_allocator"]

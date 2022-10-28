@@ -14,10 +14,11 @@ pub extern "x86-interrupt" fn breakpoint_exception(stack_frame: InterruptStackFr
     println!("stack frame: {:#?}", stack_frame);
 }
 
-pub extern "x86-interrupt" fn double_fault(stack_frame: InterruptStackFrame, _error_code: u64) -> ! {
+pub extern "x86-interrupt" fn double_fault(stack_frame: InterruptStackFrame, error_code: u64) -> ! {
     println!("---KERNEL FUCKY WUKKY UWU---");
     println!("double fault!");
     println!("stack frame: {:#?}", stack_frame);
+    println!("error code: {}", error_code);
     loop {}
 }
 
@@ -25,6 +26,14 @@ pub extern "x86-interrupt" fn page_fault(stack_frame: InterruptStackFrame, error
     println!("---KERNEL FUCKY WUKKY UWU---");
     println!("page fault!");
     println!("accessed address: {:?}", Cr2::read());
+    println!("error code: {:?}", error_code);
+    println!("stack frame: {:#?}", stack_frame);
+    loop {}
+}
+
+pub fn unhandled(stack_frame: InterruptStackFrame, index: u8, error_code: Option<u64>) {
+    println!("---KERNEL FUCKY WUKKY UWU---");
+    println!("unhandled interrupt: {}", index);
     println!("error code: {:?}", error_code);
     println!("stack frame: {:#?}", stack_frame);
     loop {}
