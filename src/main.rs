@@ -24,6 +24,7 @@ use x86_64::structures::tss::TaskStateSegment;
 use x86_64::{PhysAddr, VirtAddr};
 use x86_64::registers::segmentation::{CS, Segment, SS};
 use x86_64::structures::paging::Translate;
+use crate::boot::{get_ioapic_addr, KERNEL_ADDRESS};
 use crate::internals::WhyDoTheyCallItOvenWhenYouOfInTheColdFoodOfOutHotEatTheFood::*;
 use crate::memory::{FRAME_ALLOC, MEM_MAPPER};
 use crate::serial::terminal::ST;
@@ -36,10 +37,6 @@ mod boot;
 mod memory;
 mod macros;
 
-static BOOTLOADER_INFO: LimineBootInfoRequest = LimineBootInfoRequest::new(0);
-static TERMINAL_REQUEST: LimineTerminalRequest = LimineTerminalRequest::new(0);
-static MEM_MAP: LimineMemmapRequest = LimineMemmapRequest::new(0);
-
 lazy_static! {
     //pub static ref KERN_INFO: Mutex<Option<KernelInfo>> = Mutex::new(None);
     static ref GDT: Mutex<GlobalDescriptorTable> = {
@@ -51,7 +48,11 @@ lazy_static! {
         idt.breakpoint.set_handler_fn(internals::errors::breakpoint_exception);
         idt.double_fault.set_handler_fn(internals::errors::double_fault);
         idt.page_fault.set_handler_fn(internals::errors::page_fault);
-        idt[40].set_handler_fn(internals::cpu::keyboard_irq);
+        idt[40].set_handler_fn(internals::cpu::timer);
+        idt[41].set_handler_fn(internals::cpu::error);
+        idt[42].set_handler_fn(internals::cpu::spurious);
+        idt[50].set_handler_fn(internals::cpu::timer);
+        idt[51].set_handler_fn(internals::cpu::keyboard_irq);
         idt
     };
 }
@@ -168,6 +169,11 @@ pub extern "C" fn kernel_main() -> ! {
     // memory stuff
     {
         print!("initialising mapper...");
+        let kernel_physical_address = KERNEL_ADDRESS.get_response().get().unwrap().physical_base;
+        let kernel_virtual_address = KERNEL_ADDRESS.get_response().get().unwrap().virtual_base;
+        debug!("kernel physical address: {:#x}", kernel_physical_address);
+        debug!("kernel virtual address: {:#x}", kernel_virtual_address);
+        let offset = (kernel_virtual_address as i64) as usize;// - kernel_physical_address as i64) as usize;
         MEM_MAPPER.lock().replace(unsafe { memory::init(VirtAddr::new(0)) });
         println!("[OK]");
         print!("initialising frame allocator...");
@@ -192,7 +198,7 @@ pub extern "C" fn kernel_main() -> ! {
     }
 
     // apic stuff
-    /*{
+    {
         print!("checking for apic compatibility...");
         let apic_compatible = unsafe { internals::cpu::check_apic_compat() };
         if apic_compatible {
@@ -202,16 +208,16 @@ pub extern "C" fn kernel_main() -> ! {
             panic!("apic required at the moment");
         }
         print!("initialising apic...");
+        let ioapicaddr = get_ioapic_addr();
         unsafe { internals::cpu::enable_apic() };
         println!("[OK]");
         print!("setting up apic interrupts...");
-        let ioapicaddr = KERN_INFO.lock().as_ref().unwrap().acpi_get_ioapic_addr();
         debug!("ioapicaddr: {:#x}", ioapicaddr);
         unsafe { internals::cpu::setup_ioapic(ioapicaddr) };
         println!("[OK]");
         // enable interrupts
-        x86_64::instructions::interrupts::enable();
-    }*/
+        //x86_64::instructions::interrupts::enable();
+    }
 
     loop {
     }

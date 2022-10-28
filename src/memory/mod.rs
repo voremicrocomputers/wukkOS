@@ -3,13 +3,16 @@ pub mod allocator;
 use alloc::boxed::Box;
 use alloc::sync::Arc;
 use lazy_static::lazy_static;
-use x86_64::structures::paging::{FrameAllocator, Mapper, OffsetPageTable, PageTable, PhysFrame, Size4KiB, Translate};
+use limine::LimineMemoryMapEntryType;
+use x86_64::structures::paging::{FrameAllocator, Mapper, OffsetPageTable, Page, PageTable, PageTableFlags, PhysFrame, Size4KiB, Translate};
 use x86_64::{PhysAddr, VirtAddr};
 
 lazy_static!{
     pub static ref MEM_MAPPER: Mutex<Option<OffsetPageTable<'static>>> = Mutex::new(None);
     pub static ref FRAME_ALLOC: Mutex<Option<BootInfoFrameAllocator>> = Mutex::new(None);
 }
+
+pub const VIRT_MEM_OFFSET: u64 = 0xffffffff80000000;
 
 pub type PageSize = Size4KiB;
 
@@ -47,7 +50,8 @@ unsafe fn active_level_4_table(phys_mem_offset: VirtAddr) -> &'static mut PageTa
 }
 
 use spin::Mutex;
-use crate::{debug, MEM_MAP, print, println};
+use crate::{debug, print, println};
+use crate::boot::{KERNEL_ADDRESS, MEM_MAP};
 
 pub struct BootInfoFrameAllocator {
     next: usize,
@@ -67,6 +71,7 @@ unsafe impl FrameAllocator<Size4KiB> for BootInfoFrameAllocator {
             let mmap = MEM_MAP.get_response().get().expect("failed to get memory map")
                 .memmap();
             let mut usable_frames = mmap.iter()
+                .filter(|entry| entry.typ == LimineMemoryMapEntryType::Usable)
                     .map(|area| {
                         let frame_addr = area.base;
                         let frame_end = area.base + area.len;

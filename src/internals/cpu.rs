@@ -1,5 +1,6 @@
 use core::arch::asm;
-use x86::apic::{xapic::XAPIC, ioapic::IoApic, ApicControl};
+use x2apic::ioapic::{IoApic, IrqFlags, IrqMode, RedirectionTableEntry};
+use x2apic::lapic::{LocalApicBuilder, xapic_base};
 use x86_64::PhysAddr;
 use x86_64::structures::idt::InterruptStackFrame;
 use x86_64::structures::paging::PhysFrame;
@@ -8,15 +9,6 @@ use crate::memory::{BootInfoFrameAllocator, read_phys_memory32, write_phys_memor
 use crate::serial::{command, read};
 
 // todo! maybe abstract this into different sections for different parts of cpu func?
-
-pub struct WAPICManager {
-    pub xapic: XAPIC,
-    pub id: u32,
-}
-
-pub struct WIOAPICManager {
-    pub ioapic: IoApic,
-}
 
 pub fn check_apic_compat() -> bool {
     unsafe {
@@ -31,32 +23,33 @@ pub fn check_apic_compat() -> bool {
     }
 }
 
-pub fn enable_apic() -> WAPICManager {
+pub fn enable_apic() {
     // we need to get the xapic region
-    let mut XAPIC_REGION: &'static mut [u32] = unsafe {
-        // region should be FFFE0000H to FFFE0FFFH
-        let region_start = 0xFFFE_0000u32;
-        let region_end = 0xFFFE_0FFFu32;
-        let region_size = region_end - region_start;
-        let region_size = region_size as usize;
-        let region_start = region_start as *mut u32;
-        // read to make sure it gets mapped
-        let _ = read_phys_memory32(region_start as u32);
-        let _ = read_phys_memory32(region_end as u32);
-        core::slice::from_raw_parts_mut(region_start, region_size)
-    };
-    let mut xapic = unsafe { XAPIC::new(XAPIC_REGION) };
-    xapic.attach();
+    let phys_addr = unsafe { xapic_base() };
 
-    // get xapic id to ensure it's working
-    let id = xapic.id();
-    debug!("xapic id: {}", id);
-    debug!("xapic version: {}", xapic.version());
-    
-    WAPICManager {
-        xapic,
-        id,
+    let mut lapic = LocalApicBuilder::new()
+        .timer_vector(0x40)
+        .error_vector(0x41)
+        .spurious_vector(0x42)
+        .set_xapic_base(phys_addr)
+        .build()
+        .unwrap_or_else(|e| panic!("failed to build local apic: {}", e));
+
+    unsafe {
+        lapic.enable();
     }
+}
+
+pub extern "x86-interrupt" fn timer(stack_frame: InterruptStackFrame) {
+    println!("timer interrupt");
+}
+
+pub extern "x86-interrupt" fn error(stack_frame: InterruptStackFrame) {
+    println!("error interrupt");
+}
+
+pub extern "x86-interrupt" fn spurious(stack_frame: InterruptStackFrame) {
+    println!("spurious interrupt");
 }
 
 // todo! in the future this will be removed, it is only for testing basic apic functionality
@@ -76,16 +69,21 @@ pub extern "x86-interrupt" fn keyboard_irq(stack_frame: InterruptStackFrame) {
 }
 
 // todo! we should abstract this away
-pub fn setup_ioapic(ioapicaddr: u32) -> WIOAPICManager {
-    let mut ioapic = unsafe { IoApic::new(ioapicaddr as usize) };
-    let _ = read_phys_memory32(ioapicaddr);
-    // assert that supported interrupts is greater than 1
-    debug!("ioapic supported interrupts: {}", ioapic.supported_interrupts());
-    // setup keyboard irq (interrupt 0x40)
-    ioapic.enable(1, 0x40);
+pub fn setup_ioapic(ioapicaddr: u32) {
+    let mut ioapic = unsafe {
+        IoApic::new(ioapicaddr as u64)
+    };
+    // setup keyboard interrupt
+    unsafe {
+        // init with irq offset
+        ioapic.init(0x50);
+        let mut entry = RedirectionTableEntry::default();
+        entry.set_mode(IrqMode::Fixed);
+        entry.set_flags(IrqFlags::LEVEL_TRIGGERED | IrqFlags::LOW_ACTIVE | IrqFlags::MASKED);
+        entry.set_dest(0);
+        ioapic.set_table_entry(1, entry);
 
-    // return
-    WIOAPICManager {
-        ioapic,
+        ioapic.enable_irq(1);
     }
+
 }
