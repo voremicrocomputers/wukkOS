@@ -11,11 +11,16 @@
 extern crate rlibc;
 extern crate alloc;
 
+use alloc::boxed::Box;
 use alloc::rc::Rc;
+use alloc::string::{String, ToString};
 use alloc::vec;
+use alloc::vec::Vec;
 use core::arch::asm;
 use lazy_static::lazy_static;
 use core::panic::PanicInfo;
+use libfar::farlib;
+use libfar::farlib::{FarArchive, FarFileInfo};
 use limine::{LimineBootInfoRequest, LimineMemmapRequest, LimineTerminalRequest};
 use spin::Mutex;
 use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
@@ -24,7 +29,7 @@ use x86_64::structures::tss::TaskStateSegment;
 use x86_64::{PhysAddr, set_general_handler, VirtAddr};
 use x86_64::registers::segmentation::{CS, Segment, SS};
 use x86_64::structures::paging::Translate;
-use crate::boot::{get_ioapic_info, KERNEL_ADDRESS};
+use crate::boot::{get_initwukko, get_ioapic_info, KERNEL_ADDRESS};
 use crate::internals::WhyDoTheyCallItOvenWhenYouOfInTheColdFoodOfOutHotEatTheFood::*;
 use crate::memory::{FRAME_ALLOC, MEM_MAPPER};
 use crate::serial::terminal::ST;
@@ -36,6 +41,8 @@ mod security;
 mod boot;
 mod memory;
 mod macros;
+
+pub type InitWukko = FarArchive;
 
 lazy_static! {
     //pub static ref KERN_INFO: Mutex<Option<KernelInfo>> = Mutex::new(None);
@@ -58,6 +65,8 @@ lazy_static! {
         }
         idt
     };
+
+    static ref INITWUKKO: Mutex<Option<InitWukko>> = Mutex::new(None);
 }
 
 
@@ -289,6 +298,31 @@ pub extern "C" fn kernel_main() -> ! {
         // enable interrupts
         //x86_64::instructions::interrupts::enable();
     }
+
+    // initwukko stuff
+    {
+        print!("loading initwukko...");
+        let initwukko_raw = get_initwukko();
+        let ar = farlib::test(&initwukko_raw).expect("invalid initwukko");
+        let ar = ar.load_file_data(&initwukko_raw);
+        let mut initwukko_magic = None;
+        for entry in &ar.file_data {
+            let entry_name = &entry.name;
+            if entry_name == "magic.wukk" {
+                initwukko_magic = Some(entry.data.clone());
+                debug!("magic: {}", String::from_utf8_lossy(&entry.data));
+                break;
+            }
+        }
+        const CORRECT_MAGIC: &[u8; 24] = b"WUKKOS_COMPLIANT_RAMDISK";
+        if initwukko_magic.as_ref().unwrap_or(&vec![])[..CORRECT_MAGIC.len()] != CORRECT_MAGIC[..] {
+            debug!("initwukko magic: {:?}", initwukko_magic);
+            println!("[FAIL]");
+            panic!("invalid initwukko");
+        }
+        println!("[OK]");
+    }
+
 
     loop {
         x86_64::instructions::hlt();

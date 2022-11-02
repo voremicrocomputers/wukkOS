@@ -7,3 +7,8 @@ currently the binaries are:
 - limine-cd.bin
 - limine-cd-efi.bin
 - limine-deploy (should be for your current system)
+
+you also need to supply an initramfs, which is a tar archive located at
+`byob/initwukko.tar`  
+for now, this is supplied from the `initwukko/` folder, which will automatically add
+all included files to the tar archive.

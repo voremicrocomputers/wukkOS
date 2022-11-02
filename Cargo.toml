@@ -5,19 +5,28 @@ edition = "2021"
 
 [dependencies]
 spin = "0.9.1"
-x86_64 = "0.14.10"
-x2apic = "0.4.1"
 rlibc = "1.0"
-limine = { version = "0.1.9", optional = true }
-acpi = { version = "4.1.1", optional = true }
-linked_list_allocator = { version = "0.9.0", optional = true }
 pc-keyboard = "0.6.1"
+cstr_core = { version = "0.2.6", features = ["alloc"] }
+libfar = { git = "https://github.com/realmicrosoft/libfar_nostd" }
+linked_list_allocator = { version = "0.9.0", optional = true }
 [dependencies.lazy_static]
 version = "1.4.0"
 features = ["spin_no_std"]
 
+# x86_64 specific dependencies
+[target.'cfg(target_arch = "x86_64")'.dependencies]
+x86_64 = "0.14.10"
+x2apic = "0.4.1"
+acpi = { version = "4.1.1", optional = true }
+limine = { version = "0.1.9", optional = true }
+
+# powerpc (32) specific dependencies
+[target.'cfg(target_arch = "powerpc")'.dependencies]
+openfirmware-sys = { git = "https://github.com/realmicrosoft/openfirmware-sys.git" }
+
 [features]
-default = ["f_limine", "f_ll_alloc"]#, "f_debug_verbose"]
+default = ["f_limine", "f_ll_alloc", "f_debug_verbose"]
 f_debug_verbose = []
 f_limine = ["dep:limine", "dep:acpi"]
 f_ll_alloc = ["dep:linked_list_allocator"]

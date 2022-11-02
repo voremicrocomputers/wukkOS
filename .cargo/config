@@ -1,0 +1,6 @@
+[target.ppc32-custom.json]
+linker = "powerpc-unknown-linux-gnu-gcc"
+ar = "powerpc-unknown-linux-gnu-ar"
+#rustflags = [ "-C", "link-args=-nostdlib -ffreestanding -fPIC -Ttext 100000 -mbig-endian", "-C", "target-feature=+crt-static"]
+# for some reason it wants a string
+rustflags = "-C link-args='-nostdlib -ffreestanding -fPIC -Ttext 100000 -mbig-endian' -C target-feature=+crt-static"

@@ -1,0 +1,16 @@
+{
+    "llvm-target": "powerpc-unknown-linux-gnu",
+    "data-layout": "E-m:e-p:32:32-i64:64-n32",
+    "arch": "powerpc",
+    "target-endian": "big",
+    "target-pointer-width": "32",
+    "target-c-int-width": "32",
+    "os": "none",
+    "panic-strategy": "abort",
+    "pre-link-args": {
+        "ld.lld": [
+            "--gc-sections",
+            "--script=arch/ppc32/linker.ld"
+        ]
+    }
+}

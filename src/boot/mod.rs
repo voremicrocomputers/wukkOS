@@ -1,10 +1,12 @@
+use alloc::boxed::Box;
 use alloc::sync::Arc;
 use alloc::vec::Vec;
 use core::marker::PhantomData;
 use core::ptr::NonNull;
 use acpi::{AcpiHandler, AcpiTables, InterruptModel, PhysicalMapping};
 use acpi::platform::interrupt::InterruptSourceOverride;
-use limine::{LimineBootInfoRequest, LimineKernelAddressRequest, LimineMemmapRequest, LimineTerminalRequest, LimineTerminalResponse, LimineRsdpRequest, LimineSmpRequest};
+use cstr_core::CString;
+use limine::{LimineBootInfoRequest, LimineKernelAddressRequest, LimineMemmapRequest, LimineTerminalRequest, LimineTerminalResponse, LimineRsdpRequest, LimineSmpRequest, LimineModuleRequest};
 use crate::{debug, println};
 
 #[cfg(feature = "f_multiboot2")]
@@ -20,6 +22,7 @@ pub static MEM_MAP: LimineMemmapRequest = LimineMemmapRequest::new(0);
 pub static RSDP_REQUEST: LimineRsdpRequest = LimineRsdpRequest::new(0);
 pub static KERNEL_ADDRESS: LimineKernelAddressRequest = LimineKernelAddressRequest::new(0);
 pub static SMP_REQUEST: LimineSmpRequest = LimineSmpRequest::new(0);
+pub static MOD_REQUEST: LimineModuleRequest = LimineModuleRequest::new(0);
 
 #[derive(Clone)]
 struct Handler;
@@ -85,4 +88,21 @@ pub fn get_ioapic_info() -> (u32, Vec<InterruptSourceOverride>) {
     let address = ioapic.address;
     let overrides = apic.interrupt_source_overrides;
     (address, overrides)
+}
+
+pub fn get_initwukko() -> Vec<u8> {
+    let mut response = MOD_REQUEST.get_response().get_mut().unwrap();
+    let module = &response.modules()[0];
+    let path_cstr = module.path.as_ptr().unwrap();
+    let path = unsafe { CString::from_raw(path_cstr as *mut _) };
+    debug!("initwukko path: {}", path.to_str().unwrap());
+    let start = module.base.get().unwrap() as *const _ as usize;
+    let size = module.length as usize;
+    let end = start + size;
+    let mut data = Vec::new();
+    for i in start..end {
+        let byte = unsafe { *(i as *const u8) };
+        data.push(byte);
+    }
+    data
 }

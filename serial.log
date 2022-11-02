@@ -12,14 +12,42 @@ debug: IDT loaded
 
 welcome to wukkOS!
 (c) 2022 Real Microsoft, LLC
-initialising mapper...[OK]
+initialising mapper...[debug] kernel physical address: 0x19a35000
+[debug] kernel virtual address: 0xffffffff80000000
+[OK]
 initialising frame allocator...[OK]
 initialising heap...[OK]
 testing heap...[OK]
 checking for apic compatibility...[OK]
-initialising apic...[OK]
-setting up apic interrupts...[OK]
+initialising apic...[debug] mapping physical region: 1fb7e014 - 1fb7e038
+[debug] mapping physical region: 1fb7d0e8 - 1fb7d10c
+[debug] (THIS IS NORMAL) failed to unmap physical region: ParentEntryHugePage
+[debug] mapping physical region: 1fb7d0e8 - 1fb7d134
+[debug] mapping physical region: 1fb7a000 - 1fb7a024
+[debug] (THIS IS NORMAL) failed to unmap physical region: ParentEntryHugePage
+[debug] mapping physical region: 1fb7a000 - 1fb7a114
+[debug] mapping physical region: 1fb7b000 - 1fb7b024
+[debug] (THIS IS NORMAL) failed to unmap physical region: ParentEntryHugePage
+[debug] (THIS IS NORMAL) failed to unmap physical region: ParentEntryHugePage
+[debug] mapping physical region: 1fb79000 - 1fb79024
+[debug] (THIS IS NORMAL) failed to unmap physical region: ParentEntryHugePage
+[debug] mapping physical region: 1fb78000 - 1fb78024
+[debug] (THIS IS NORMAL) failed to unmap physical region: ParentEntryHugePage
+[debug] mapping physical region: 1fb77000 - 1fb77024
+[debug] (THIS IS NORMAL) failed to unmap physical region: ParentEntryHugePage
+[debug] mapping physical region: 1fb76000 - 1fb76024
+[debug] (THIS IS NORMAL) failed to unmap physical region: ParentEntryHugePage
+[debug] (THIS IS NORMAL) failed to unmap physical region: ParentEntryHugePage
+[debug] (THIS IS NORMAL) failed to unmap physical region: ParentEntryHugePage
+[debug] mapping physical region: 1fb7a000 - 1fb7a074
+[debug] mapping physical region: 1fb79000 - 1fb79078
+[debug] (THIS IS NORMAL) failed to unmap physical region: ParentEntryHugePage
+[debug] (THIS IS NORMAL) failed to unmap physical region: ParentEntryHugePage
+[OK]
+setting up apic interrupts...[debug] ioapicaddr: 0xfec00000
+[OK]
+loading initwukko...[debug] initwukko path: /boot/initwukko.far
+[debug] magic: WUKKOS_COMPLIANT_RAMDISK
+[OK]
 
-hello world i am typing this using the legacy keyboard driver thingy in the apic from ioapic irq 1!
-wukkOS moment, probably gonna swap this out for a real keyboard driver eventually but this is funny so (:
-top ten wukkooOS moments
+hello i love sex 123 123 69 lol

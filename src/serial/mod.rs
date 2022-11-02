@@ -152,7 +152,15 @@ pub fn test_port(port: potential_serial_ports) -> bool {
 
 pub fn init_serial() -> SerialPorts {
     // this is so fucking cursed
-    let mut ports_tmp : [Port; 8] = [Port { base: potential_serial_ports::COM1 }, Port { base: potential_serial_ports::COM2 }, Port { base: potential_serial_ports::COM3 }, Port { base: potential_serial_ports::COM4 }, Port { base: potential_serial_ports::COM5 }, Port { base: potential_serial_ports::COM6 }, Port { base: potential_serial_ports::COM7 }, Port { base: potential_serial_ports::COM8 }];
+    let mut ports_tmp : [Port; 8] = [
+        Port { base: potential_serial_ports::COM1 },
+        Port { base: potential_serial_ports::COM2 },
+        Port { base: potential_serial_ports::COM3 },
+        Port { base: potential_serial_ports::COM4 },
+        Port { base: potential_serial_ports::COM5 },
+        Port { base: potential_serial_ports::COM6 },
+        Port { base: potential_serial_ports::COM7 },
+        Port { base: potential_serial_ports::COM8 }];
     let mut ports_enabled_tmp : [bool; 8] = [false; 8];
     for i in 0..8 {
         if test_port(ports_tmp[i].base) {
