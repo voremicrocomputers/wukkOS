@@ -1,5 +1,3 @@
-pub mod errors;
-pub mod interrupts;
 pub mod cpu;
 
 pub mod WhyDoTheyCallItOvenWhenYouOfInTheColdFoodOfOutHotEatTheFood {

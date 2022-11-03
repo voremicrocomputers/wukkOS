@@ -21,18 +21,8 @@ use lazy_static::lazy_static;
 use core::panic::PanicInfo;
 use libfar::farlib;
 use libfar::farlib::{FarArchive, FarFileInfo};
-use limine::{LimineBootInfoRequest, LimineMemmapRequest, LimineTerminalRequest};
 use spin::Mutex;
-use x86_64::structures::idt::{InterruptDescriptorTable, InterruptStackFrame};
-use x86_64::structures::gdt::{GlobalDescriptorTable, Descriptor};
-use x86_64::structures::tss::TaskStateSegment;
-use x86_64::{PhysAddr, set_general_handler, VirtAddr};
-use x86_64::registers::segmentation::{CS, Segment, SS};
-use x86_64::structures::paging::Translate;
-use crate::boot::{get_initwukko, get_ioapic_info, KERNEL_ADDRESS};
 use crate::internals::WhyDoTheyCallItOvenWhenYouOfInTheColdFoodOfOutHotEatTheFood::*;
-use crate::memory::{FRAME_ALLOC, MEM_MAPPER};
-use crate::serial::terminal::ST;
 
 mod font;
 mod serial;
@@ -45,27 +35,6 @@ mod macros;
 pub type InitWukko = FarArchive;
 
 lazy_static! {
-    //pub static ref KERN_INFO: Mutex<Option<KernelInfo>> = Mutex::new(None);
-    static ref GDT: Mutex<GlobalDescriptorTable> = {
-        let mut gdt = GlobalDescriptorTable::new();
-        Mutex::new(gdt)
-    };
-    static ref IDT: InterruptDescriptorTable = {
-        let mut idt = InterruptDescriptorTable::new();
-        unsafe {
-            use internals::errors::unhandled;
-            set_general_handler!(&mut idt, unhandled);
-            idt.breakpoint.set_handler_fn(internals::errors::breakpoint_exception).set_stack_index(0);
-            idt.double_fault.set_handler_fn(internals::errors::double_fault).set_stack_index(0);
-            idt.page_fault.set_handler_fn(internals::errors::page_fault).set_stack_index(0);
-            idt[internals::cpu::TIMER_IRQ].set_handler_fn(internals::cpu::timer).set_stack_index(1);
-            idt[internals::cpu::ERROR_IRQ].set_handler_fn(internals::cpu::error).set_stack_index(1);
-            idt[internals::cpu::SPURIOUS_IRQ].set_handler_fn(internals::cpu::spurious).set_stack_index(1);
-            idt[internals::cpu::FALLBACK_KEYBOARD_IRQ].set_handler_fn(internals::cpu::keyboard_irq).set_stack_index(1);
-        }
-        idt
-    };
-
     static ref INITWUKKO: Mutex<Option<InitWukko>> = Mutex::new(None);
 }
 
@@ -78,6 +47,10 @@ fn alloc_error_handler(layout: alloc::alloc::Layout) -> ! {
 }
 
 #[panic_handler]
+fn panic_wrapper(info: &PanicInfo) -> ! {
+    panic(info)
+}
+
 fn panic(info: &PanicInfo) -> ! {
     println!("---KERNEL FUCKY WUKKY UWU (panic)---");
     if let Some(s) = info.payload().downcast_ref::<&str>() {
@@ -85,7 +58,7 @@ fn panic(info: &PanicInfo) -> ! {
     } else {
         println!("no panic payload")
     };
-   if let Some(msg) = info.message() {
+    if let Some(msg) = info.message() {
         println!("panic msg: {}", msg)
     } else {
         println!("no message");
@@ -98,144 +71,54 @@ fn panic(info: &PanicInfo) -> ! {
     loop {}
 }
 
+#[cfg(target_arch = "powerpc")]
+use ieee1275::prom_init;
+#[cfg(target_arch = "powerpc")]
+use ieee1275::services::Args;
+
+#[cfg(target_arch = "powerpc")]
+#[no_mangle]
+#[link_section = ".text"]
+pub extern "C" fn _start(_r3: u32, _r4: u32, entry: extern "C" fn(*mut Args) -> usize) -> isize {
+    use internals::cpu::ppc32::PROMHNDL;
+    {
+        let mut prom = PROMHNDL.lock();
+        prom.set_prom(prom_init(entry));
+    }
+
+    kernel_main();
+
+    PROMHNDL.lock().get().exit()
+}
+
 #[no_mangle]
 pub extern "C" fn kernel_main() -> ! {
+    // ppc32 stuff for now
+    //#[cfg(target_arch = "powerpc")]
+    {
+
+    }
+
     debug!("entry point");
 
-    // initialise serial
-    let mut serial_ports = serial::init_serial();
-    let mut console_port = None;
-    for (i, enabled) in serial_ports.ports_enabled.iter().enumerate() {
-        if *enabled {
-            console_port = Some(i);
-        }
-    }
-
-    if let Some(i) = console_port {
-        let port = &serial_ports.ports[i];
-        ST.init_from_port(*port);
-        println!("using serial port {} as console", i);
-    }
-
-    // temporarily disable interrupts
-    x86_64::instructions::interrupts::disable();
-    println!("debug: setup GDT");
-    // load TSS
-    static mut tss: TaskStateSegment = TaskStateSegment::new();
+    #[cfg(target_arch = "x86_64")]
     {
-        unsafe {
-            {
-                tss.interrupt_stack_table[0] = {
-                    const STACK_SIZE: usize = 4096 * 5;
-                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
-                    let stack_end = stack_start + STACK_SIZE;
-                    stack_end
-                };
-                tss.interrupt_stack_table[1] = {
-                    const STACK_SIZE: usize = 4096 * 5;
-                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
-                    let stack_end = stack_start + STACK_SIZE;
-                    stack_end
-                };
-                tss.interrupt_stack_table[2] = {
-                    const STACK_SIZE: usize = 4096 * 5;
-                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
-                    let stack_end = stack_start + STACK_SIZE;
-                    stack_end
-                };
-                tss.interrupt_stack_table[3] = {
-                    const STACK_SIZE: usize = 4096 * 5;
-                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
-                    let stack_end = stack_start + STACK_SIZE;
-                    stack_end
-                };
-                tss.interrupt_stack_table[4] = {
-                    const STACK_SIZE: usize = 4096 * 5;
-                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
-                    let stack_end = stack_start + STACK_SIZE;
-                    stack_end
-                };
-                tss.interrupt_stack_table[5] = {
-                    const STACK_SIZE: usize = 4096 * 5;
-                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
-                    let stack_end = stack_start + STACK_SIZE;
-                    stack_end
-                };
-                tss.interrupt_stack_table[6] = {
-                    const STACK_SIZE: usize = 4096 * 5;
-                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
-                    let stack_end = stack_start + STACK_SIZE;
-                    stack_end
-                };
-            }
-            {
-                tss.privilege_stack_table[0] = {
-                    const STACK_SIZE: usize = 4096 * 5;
-                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
-                    let stack_end = stack_start + STACK_SIZE;
-                    stack_end
-                };
-                tss.privilege_stack_table[1] = {
-                    const STACK_SIZE: usize = 4096 * 5;
-                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
-                    let stack_end = stack_start + STACK_SIZE;
-                    stack_end
-                };
-                tss.privilege_stack_table[2] = {
-                    const STACK_SIZE: usize = 4096 * 5;
-                    static mut STACK: [u8; STACK_SIZE] = [0; STACK_SIZE];
-                    let stack_start = VirtAddr::from_ptr(unsafe { &STACK });
-                    let stack_end = stack_start + STACK_SIZE;
-                    stack_end
-                };
-            }
-            // set word at offset 102 to 0x68 and last two bytes of the tss to 0xffff
-            // this is a hack to make the tss valid
-            let tss_ptr = &tss as *const TaskStateSegment as *mut u8;
-            unsafe {
-                *tss_ptr.add(102) = 0x68;
-                *tss_ptr.add(104) = 0xff;
-                *tss_ptr.add(105) = 0xff;
+        // initialise serial
+        let mut serial_ports = serial::init_serial();
+        let mut console_port = None;
+        for (i, enabled) in serial_ports.ports_enabled.iter().enumerate() {
+            if *enabled {
+                console_port = Some(i);
             }
         }
-        let kcs = GDT.lock().add_entry(Descriptor::kernel_code_segment());
-        let kds = GDT.lock().add_entry(Descriptor::kernel_data_segment());
-        let tsss = unsafe { GDT.lock().add_entry(Descriptor::tss_segment(&tss)) };
-        // load GDT
-        unsafe {
-            GDT.lock().load_unsafe();
-        }
-        println!("debug: GDT loaded");
-        // set code segment to kernel code segment
-        unsafe {
-            CS::set_reg(kcs);
-        }
-        println!("debug: CS set");
-        // set data segment to kernel data segment
-        unsafe {
-            SS::set_reg(kds);
-        }
-        println!("debug: SS set");
-        // load TSS
-        unsafe {
-            x86_64::instructions::tables::load_tss(tsss);
-        }
-        println!("debug: TSS loaded");
 
-        // load IDT
-        IDT.load();
-        println!("debug: IDT loaded");
-        // enable interrupts
-        x86_64::instructions::interrupts::enable();
+        if let Some(i) = console_port {
+            let port = &serial_ports.ports[i];
+            ST.init_from_port(*port);
+            println!("using serial port {} as console", i);
+        }
+
+        internals::cpu::x86_64::init();
     }
 
 
@@ -244,6 +127,8 @@ pub extern "C" fn kernel_main() -> ! {
     println!();
     println!("welcome to wukkOS!");
     println!("(c) 2022 Real Microsoft, LLC");
+
+    /*
 
     // memory stuff
     {
@@ -296,7 +181,7 @@ pub extern "C" fn kernel_main() -> ! {
         unsafe { internals::cpu::setup_ioapic(addr, isos) };
         println!("[OK]");
         // enable interrupts
-        //x86_64::instructions::interrupts::enable();
+        //apic::instructions::interrupts::enable();
     }
 
     // initwukko stuff
@@ -323,8 +208,12 @@ pub extern "C" fn kernel_main() -> ! {
         println!("[OK]");
     }
 
+     */
 
     loop {
-        x86_64::instructions::hlt();
+        #[cfg(target_arch = "apic")]
+        {
+            x86_64::instructions::hlt();
+        }
     }
 }

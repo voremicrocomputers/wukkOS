@@ -28,7 +28,7 @@ fn main() {
         return;
     }
 
-    let mut run_cmd = Command::new("qemu-system-x86_64");
+    let mut run_cmd = Command::new("qemu-system-apic");
     run_cmd
         .arg("-drive")
         .arg(format!("format=raw,file={}", bios.display()));

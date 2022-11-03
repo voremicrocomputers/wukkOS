@@ -9,8 +9,7 @@
     "panic-strategy": "abort",
     "pre-link-args": {
         "ld.lld": [
-            "--gc-sections",
-            "--script=arch/ppc32/linker.ld"
+            "--gc-sections"
         ]
     }
 }

@@ -1,12 +1,12 @@
 arch ?= x86_64
-kernel := target/$(arch)-custom/debug/wukkOS
 iso := build/arch/$(arch)/wukkOS.iso
 target ?= $(arch)-custom
+kernel := target/$(target)/release/wukkOS
 final := build/arch/$(arch)/wukkOS.bin
 initwukko := byob/initwukko.far
 initwukko_from := initwukko
 efi_bios := build/arch/$(arch)/OVMF-pure-efi.fd
-kernel_flags :=
+KERNEL_FLAGS := -Zbuild-std=core,alloc
 RUST_FLAGS :=
 gcc ?= gcc
 ld ?= ld
@@ -20,9 +20,12 @@ assembly_object_files := $(patsubst arch/$(arch)/%.asm, \
 
 
 ifeq "$(arch)" "x86_64"
-kernel_flags += --features "f_limine"
+KERNEL_FLAGS += --features "f_limine" --features "rlibc"
 endif
 ifeq "$(arch)" "ppc32"
+target := powerpc-unknown-linux-gnu
+kernel := target/$(target)/release/wukkOS
+KERNEL_FLAGS :=
 endif
 
 .PHONY: all clean run iso quick_invalidate build_no_iso
@@ -32,7 +35,7 @@ all: $(final) $(iso)
 build_no_iso: $(final)
 
 clean:
-	@xargo clean
+	@cargo clean
 	@rm -rf build
 
 run: $(final) $(iso)
@@ -68,7 +71,7 @@ $(final): $(kernel) $(linker_script) $(initwukko)
 	#	--gc-sections
 
 $(kernel):
-	@RUSTFLAGS="$(RUST_FLAGS)" RUST_TARGET_PATH="$(shell pwd)" cargo +nightly build --target $(target) -Zbuild-std=core,alloc $(kernel_flags)
+	@RUST_TARGET_PATH="$(shell pwd)" cargo +nightly build --release --target $(target) $(KERNEL_FLAGS)
 
 $(initwukko):
 	@mkdir -p $(shell dirname $@)
